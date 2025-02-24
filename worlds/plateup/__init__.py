@@ -39,10 +39,9 @@ class PlateUpWorld(World):
         menu_region.connect(main_region)
         main_region.connect(menu_region)
         
-        # Iterate through the locations and mark only the first 15 as progression.
         for loc_name, loc_id in LOCATIONS.items():
             loc = PlateUpLocation(self.player, loc_name, loc_id, parent=main_region)
-            if loc_id < 100016:  # Only days 1-15 are progression locations.
+            if (100001 <= loc_id <= 100015) or (200000 <= loc_id <= 200015):
                 loc.progress_type = LocationProgressType.PRIORITY
             else:
                 loc.progress_type = LocationProgressType.DEFAULT
