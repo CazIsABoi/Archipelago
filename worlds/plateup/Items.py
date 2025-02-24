@@ -104,5 +104,6 @@ ITEMS = {
     "Cookie Tray": (1016, ItemClassification.filler),
     "Cupcake Tray": (10162, ItemClassification.filler),
     "Doughnut Tray": (10163, ItemClassification.filler),
+    "Extra Life": (10164, ItemClassification.progression),
 }
 
