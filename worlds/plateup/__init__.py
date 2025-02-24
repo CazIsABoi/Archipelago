@@ -1,8 +1,7 @@
-from typing import List
-from BaseClasses import Region, ItemClassification, LocationProgressType
 from worlds.AutoWorld import World
-from .Locations import LOCATIONS, PlateUpLocation
+from BaseClasses import Region, ItemClassification, LocationProgressType
 from .Items import ITEMS, PlateUpItem
+from .Locations import LOCATIONS, PlateUpLocation
 
 class PlateUpWorld(World):
     game = "plateup"
@@ -13,19 +12,17 @@ class PlateUpWorld(World):
     def create_item(self, name: str, classification: ItemClassification = ItemClassification.progression):
         return PlateUpItem(name, classification, self.item_name_to_id[name], self.player)
 
-def create_items(self):
-    self.itempool = []
-    for name, (code, classification) in ITEMS.items():
-        self.itempool.append(PlateUpItem(name, classification, code, self.player))
-    self.multiworld.itempool += self.itempool
-
+    def create_items(self):
+        self.itempool = []
+        for name, (code, classification) in ITEMS.items():
+            self.itempool.append(PlateUpItem(name, classification, code, self.player))
+        self.multiworld.itempool += self.itempool
 
     @classmethod
     def get_filler_item_name(cls):
         return "Hob"
 
     def create_regions(self):
-
         menu_region = Region("Menu", self.player, self.multiworld)
         self.multiworld.regions.append(menu_region)
         
