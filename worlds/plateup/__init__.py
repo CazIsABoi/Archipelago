@@ -20,8 +20,7 @@ def create_items(self):
     self.multiworld.itempool += self.itempool
 
 
-    @classmethoda
-    
+    @classmethod
     def get_filler_item_name(cls):
         return "Hob"
 
