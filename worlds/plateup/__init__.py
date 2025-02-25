@@ -57,4 +57,3 @@ class PlateUpWorld(World):
                 lambda state: state.has_location("Franchise Twice", self.player)
 
 
-
