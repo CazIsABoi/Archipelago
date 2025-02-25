@@ -58,4 +58,5 @@ LOCATIONS: Dict[str, int] = {
     "Start Day 18 After Franchised": 200018,
     "Start Day 19 After Franchised": 200019,
     "Start Day 20 After Franchised": 200020,
+    "Franchise Twice": 300000,
 }

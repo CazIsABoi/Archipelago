@@ -2,10 +2,14 @@ from worlds.AutoWorld import World
 from BaseClasses import Region, ItemClassification, LocationProgressType
 from .Items import ITEMS, PlateUpItem
 from .Locations import LOCATIONS, PlateUpLocation
+from .Options import plateup_options 
 
 class PlateUpWorld(World):
     game = "plateup"
-    
+
+    # Point to your dictionary of custom options
+    option_definitions = plateup_options
+
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
     location_name_to_id = LOCATIONS
 
@@ -39,3 +43,18 @@ class PlateUpWorld(World):
             else:
                 loc.progress_type = LocationProgressType.DEFAULT
             main_region.locations.append(loc)
+
+    def set_rules(self):
+        goal = self.multiworld.plateup_goal[self.player].value
+        
+        # 0 -> "Franchise Once"
+        # 1 -> "Franchise Twice"
+        if goal == 0:
+            self.multiworld.completion_condition[self.player] = \
+                lambda state: state.has_location("Franchise Once", self.player)
+        elif goal == 1:
+            self.multiworld.completion_condition[self.player] = \
+                lambda state: state.has_location("Franchise Twice", self.player)
+
+
+
