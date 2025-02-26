@@ -6,7 +6,6 @@ from .Options import plateup_options
 
 class PlateUpWorld(World):
     game = "plateup"
-
     # Point to your dictionary of custom options
     option_definitions = plateup_options
 
@@ -33,27 +32,22 @@ class PlateUpWorld(World):
         main_region = Region("Main", self.player, self.multiworld)
         self.multiworld.regions.append(main_region)
         
+        # Connect regions (if needed for traversal or future logic)
         menu_region.connect(main_region)
         main_region.connect(menu_region)
         
+        # Create all defined locations in the Main region
         for loc_name, loc_id in LOCATIONS.items():
             loc = PlateUpLocation(self.player, loc_name, loc_id, parent=main_region)
+            # Mark important day start and franchise locations as priority
             if (100001 <= loc_id <= 100015) or (200000 <= loc_id <= 200015):
                 loc.progress_type = LocationProgressType.PRIORITY
             else:
                 loc.progress_type = LocationProgressType.DEFAULT
             main_region.locations.append(loc)
 
-    def set_rules(self):
-        goal = self.multiworld.plateup_goal[self.player].value
-        
-        # 0 -> "Franchise Once"
-        # 1 -> "Franchise Twice"
-        if goal == 0:
-            self.multiworld.completion_condition[self.player] = \
-                lambda state: state.has_location("Franchise Once", self.player)
-        elif goal == 1:
-            self.multiworld.completion_condition[self.player] = \
-                lambda state: state.has_location("Franchise Twice", self.player)
-
+def set_rules(self):
+    # Only test for Franchise Twice – Franchise Once is ignored for now.
+    self.multiworld.completion_condition[self.player] = \
+        lambda state: state.has_location("Franchise Twice", self.player)
 
