@@ -12,19 +12,21 @@ class PlateUpItem(Item):
 
 
 ITEMS = {
+    #region Appliances
     "Hob": (1001, ItemClassification.useful),
     "Safe Hob": (10012, ItemClassification.useful),
-    "Danger Hob": (10013, ItemClassification.useful),
+    "Danger Hob": (10013, ItemClassification.progression),
     "Starting Hob": (10014, ItemClassification.filler),
-    "Oven": (10015, ItemClassification.useful),
+    "Oven": (10015, ItemClassification.progression),
     "Microwave": (10016, ItemClassification.useful),
     "Gas Limiter": (10017, ItemClassification.useful),
     "Gas Override": (10018, ItemClassification.useful),
     "Sink": (1002, ItemClassification.useful),
     "Power Sink": (10022, ItemClassification.useful),
-    "Wash Basin": (10023, ItemClassification.useful),
+    "Soaking Sink": (10023, ItemClassification.useful),
     "Starting Sink": (10024, ItemClassification.filler),
-    "Dishwasher": (10025, ItemClassification.useful),
+    "Dishwasher": (10025, ItemClassification.progression),
+    "Wash Basin": (10026, ItemClassification.progression),
     "Counter": (1003, ItemClassification.useful),
     "Workstation": (10032, ItemClassification.useful),
     "Freezer": (10033, ItemClassification.useful),
@@ -62,9 +64,9 @@ ITEMS = {
     "Robot Buffer": (10086, ItemClassification.useful),
     "Dish Rack": (10087, ItemClassification.useful),
     "Conveyor": (1009, ItemClassification.useful),
-    "Grabber": (10092, ItemClassification.useful),
-    "Smart Grabber": (10093, ItemClassification.useful),
-    "Grabber Rotating": (10094, ItemClassification.useful),
+    "Grabber": (10092, ItemClassification.progression),
+    "Smart Grabber": (10093, ItemClassification.progression),
+    "Grabber Rotating": (10094, ItemClassification.progression),
     "Combiner": (10095, ItemClassification.useful),
     "Portioner": (10096, ItemClassification.useful),
     "Mixer": (10097, ItemClassification.useful),
@@ -105,5 +107,10 @@ ITEMS = {
     # "Cupcake Tray": (10162, ItemClassification.filler),
     # "Doughnut Tray": (10163, ItemClassification.filler),
     "Extra Life": (10164, ItemClassification.progression),
+    #endregion
+
+    #region Speed Unlocks
+    "Speed Upgrade Player": (10, ItemClassification.progression),
+    #endregion
 }
 

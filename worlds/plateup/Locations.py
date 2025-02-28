@@ -31,7 +31,6 @@ LOCATIONS: Dict[str, int] = {
     "Complete Day 18": 100018,
     "Complete Day 19": 100019,
     "Complete Day 20": 100020,
-    "Complete Day 20": 100020,
     "Franchise Once": 200000,
     "Complete First Day After Franchised": 200001,
     "Complete Second Day After Franchised": 200002,
@@ -59,4 +58,63 @@ LOCATIONS: Dict[str, int] = {
     "Complete Day 19 After Franchised": 200019,
     "Complete Day 20 After Franchised": 200020,
     "Franchise Twice": 300000,
+    "Complete First Day After Franchised Twice": 300001,
+    "Complete Second Day After Franchised Twice": 300002,
+    "Complete Third Day After Franchised Twice": 300003,
+    "First Star Franchised Twice": 3000031,
+    "Complete Fourth Day After Franchised Twice": 300004,
+    "Complete Fifth Day After Franchised Twice": 300005,
+    "Complete Day 6 After Franchised Twice": 300006,
+    "Second Star Franchised Twice": 3000061,
+    "Complete Day 7 After Franchised Twice": 300007,
+    "Complete Day 8 After Franchised Twice": 300008,
+    "Complete Day 9 After Franchised Twice": 300009,
+    "Third Star Franchised Twice": 3000091,
+    "Complete Day 10 After Franchised Twice": 300010,
+    "Complete Day 11 After Franchised Twice": 300011,
+    "Complete Day 12 After Franchised Twice": 300012,
+    "Fourth Star Franchised Twice": 30000121,
+    "Complete Day 13 After Franchised Twice": 300013,
+    "Complete Day 14 After Franchised Twice": 300014,
+    "Complete Day 15 After Franchised Twice": 300015,
+    "Fifth Star Franchised Twice": 30000151,
+    "Complete Day 16 After Franchised Twice": 300016,
+    "Complete Day 17 After Franchised Twice": 300017,
+    "Complete Day 18 After Franchised Twice": 300018,
+    "Complete Day 19 After Franchised Twice": 300019,
+    "Complete Day 20 After Franchised Twice": 300020,
+    "Franchise Thrice": 400000,
 }
+
+# Dish Dictionary with their ID prefixes
+dish_dictionary = {
+    101: "Salad",
+    102: "Steak",
+    103: "Burger",
+    104: "Coffee",
+    105: "Pizza",
+    106: "Dumplings",
+    107: "Turkey",
+    108: "Pie",
+    109: "Cakes",
+    110: "Spaghetti",
+    111: "Fish",
+    112: "Tacos",
+    113: "Hot Dogs",
+    114: "Breakfast",
+    115: "Stir Fry",
+}
+
+def add_filtered_dish_locations(selected_dishes):
+    """Only adds locations for selected dishes to the global LOCATIONS dictionary"""
+    global LOCATIONS
+
+    for dish_id in selected_dishes:
+        dish_name = dish_dictionary[dish_id]  # Retrieve dish name
+        for day in range(1, 16):  # Days 1 to 15
+            location_name = f"{dish_name} - Day {day}"
+            location_id = (dish_id * 1000) + day  # Unique ID
+            LOCATIONS[location_name] = location_id  # Add named location
+
+
+    print(f"LOCATIONS after filtering: {list(LOCATIONS.keys())}")
