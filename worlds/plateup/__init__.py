@@ -6,7 +6,7 @@ from Options import PerGameCommonOptions
 from worlds.AutoWorld import World
 from BaseClasses import Region, ItemClassification, LocationProgressType
 from .Items import ITEMS, PlateUpItem
-from .Locations import LOCATIONS, PlateUpLocation
+from .Locations import LOCATIONS, DISH_LOCATIONS, PlateUpLocation
 from .Options import plateup_options
 
 class PlateUpWorld(World):
@@ -14,73 +14,102 @@ class PlateUpWorld(World):
     options_dataclass = plateup_options
 
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
-    location_name_to_id = LOCATIONS
+    location_name_to_id = {**LOCATIONS, **DISH_LOCATIONS}
 
     def create_item(self, name: str, classification: ItemClassification = ItemClassification.progression):
         return PlateUpItem(name, classification, self.item_name_to_id[name], self.player)
 
     def create_items(self):
-        try:
-            available_progression_locations = {
-                loc.name: loc for loc in self.multiworld.get_reachable_locations(self.multiworld.state, self.player)
-                if "Progression" in loc.parent_region.name
-            }
-            available_dish_locations = {
-                loc.name: loc for loc in self.multiworld.get_reachable_locations(self.multiworld.state, self.player)
-                if "Dish Checks" in loc.parent_region.name
-            }
-        except AttributeError as e:
-            print(f"Error fetching reachable locations: {e}")
-            available_progression_locations = {}
-            available_dish_locations = {}
+        multiworld = self.multiworld
+        player = self.player
+
+        # 🔥 Fetch Available Locations
+        available_progression_locations = {
+            loc.name: loc for loc in multiworld.get_reachable_locations(multiworld.state, player)
+            if "Progression" in loc.parent_region.name
+        }
+        available_dish_locations = {
+            loc.name: loc for loc in multiworld.get_reachable_locations(multiworld.state, player)
+            if "Dish Checks" in loc.parent_region.name
+        }
+
+        # 🔥 Ensure only selected dishes are included
+        selected_dishes = multiworld.selected_dishes[player]
+        filtered_dish_locations = {
+            loc_name: loc for loc_name, loc in available_dish_locations.items()
+            if any(dish in loc_name for dish in selected_dishes)
+        }
 
         print(f"Progression Locations: {list(available_progression_locations.keys())}")
-        print(f"Dish Locations: {list(available_dish_locations.keys())}")
+        print(f"Filtered Dish Locations: {list(filtered_dish_locations.keys())}")
 
         if not available_progression_locations:
             raise ValueError("No available progression locations found. Check region setup!")
-        
-        if not available_dish_locations:
-            raise ValueError("No available dish locations found. Check region setup!")
 
-        # Generate item pool while excluding "Speed Upgrade Player"
-        self.itempool = [
+        if not filtered_dish_locations:
+            raise ValueError("No valid dish locations found. Check region setup!")
+
+        # 🔥 Fetch All MultiWorld Items First
+        multiworld_items = list(multiworld.get_items())
+
+        # 🔥 Generate PlateUp Items (Excluding Speed Upgrade Player)
+        plateup_items = [
             self.create_item(name, classification)
             for name, (item_id, classification) in ITEMS.items()
-            if name != "Speed Upgrade Player"
+            if classification != ItemClassification.filler and name != "Speed Upgrade Player"
         ]
 
-        # Add exactly 5 "Speed Upgrade Player" items
-        speed_upgrades = [self.create_item("Speed Upgrade Player", ItemClassification.useful) for _ in range(5)]
+        # 🔥 Ensure Franchise Progression Locations Have Items
+        franchise_locations = [
+            "Franchise Once", "Franchise Twice", "Franchise Thrice",
+            "Complete First Day After Franchised", "Complete Second Day After Franchised",
+            "Complete Third Day After Franchised", "First Star Franchised", "Complete Fourth Day After Franchised",
+            "Complete Fifth Day After Franchised", "Complete Day 6 After Franchised", "Second Star Franchised",
+            "Complete Day 7 After Franchised", "Complete Day 8 After Franchised", "Complete Day 9 After Franchised",
+            "Third Star Franchised", "Complete Day 10 After Franchised", "Complete Day 11 After Franchised",
+            "Complete Day 12 After Franchised", "Fourth Star Franchised", "Complete Day 13 After Franchised",
+            "Complete Day 14 After Franchised", "Complete Day 15 After Franchised", "Fifth Star Franchised",
+            "Complete Day 16 After Franchised", "Complete Day 17 After Franchised", "Complete Day 18 After Franchised",
+            "Complete Day 19 After Franchised", "Complete Day 20 After Franchised"
+        ]
 
-        # Ensure at least one Speed Upgrade Player is placed before Day 15 and one before Franchised Day 15
-        important_locations = [name for name in available_progression_locations if "Day 15" not in name]
-        franchised_locations = [name for name in available_progression_locations if "After Franchised" in name and "Day 15" not in name]
+        for loc_name in franchise_locations:
+            if loc_name not in available_progression_locations:
+                continue
+            loc = available_progression_locations[loc_name]
+            item = self.create_item(random.choice(list(ITEMS.keys())), ItemClassification.progression)
+            loc.place_locked_item(item)
 
-        if important_locations:
-            chosen_location = random.choice(important_locations)
-            available_progression_locations[chosen_location].place_locked_item(speed_upgrades.pop())
+        # 🔥 Ensure Enough Items Exist
+        min_items_required = len(available_progression_locations) + len(filtered_dish_locations)
 
-        if franchised_locations:
-            chosen_location = random.choice(franchised_locations)
-            available_progression_locations[chosen_location].place_locked_item(speed_upgrades.pop())
+        while len(multiworld_items) + len(plateup_items) < min_items_required:
+            next_item = random.choice(list(ITEMS.keys()))  # Randomly select from PlateUp items
+            if next_item != "Speed Upgrade Player":
+                plateup_items.append(self.create_item(next_item, ItemClassification.progression))
 
-        # Add remaining Speed Upgrades randomly into the pool
-        self.itempool.extend(speed_upgrades)
+        # 🔥 Combine MultiWorld Items + PlateUp Items
+        self.itempool = multiworld_items + plateup_items
+
+        # 🔥 Shuffle Item Pool to Randomize Placement
         random.shuffle(self.itempool)
 
-        # Ensure enough items to fill locations
-        all_locations = list(available_progression_locations.values()) + list(available_dish_locations.values())
-        while len(self.itempool) < len(all_locations):
-            self.itempool.extend(self.itempool)  # Duplicate the item pool if necessary
-        self.itempool = self.itempool[:len(all_locations)]  # Trim to match location count
+        # 🔥 Assign Items to Locations (Only to Valid Dish Checks)
+        all_locations = list(available_progression_locations.values()) + list(filtered_dish_locations.values())
 
-        # Assign items to locations
         for loc, item in zip(all_locations, self.itempool):
-            if not loc.item:  # Avoid overwriting pre-placed Speed Upgrade Player
+            if not loc.item:
                 loc.place_locked_item(item)
 
-        print(f"Filled {len(all_locations)} locations with items.")
+        print(f"Filled {len(all_locations)} locations with {len(self.itempool)} items.")
+
+
+
+
+
+
+
+
 
     @classmethod
     def get_filler_item_name(cls):
@@ -90,18 +119,73 @@ class PlateUpWorld(World):
         from .Regions import create_plateup_regions
         create_plateup_regions(self.multiworld, self.player)
 
-    def set_rules(self):
-        goal = self.multiworld.goal[self.player].value
-        if goal == "Franchise":
-            location_id = 200000
-        elif goal == "Franchise Twice":
-            location_id = 300000
-        else:
-            location_id = 400000
+        # 🔥 Ensure dish locations are properly registered in the MultiWorld system
+        dish_region = self.multiworld.get_region("Dish Checks", self.player)
 
-        self.multiworld.completion_condition[self.player] = lambda state: any(
-            (loc.address == location_id) for loc in state.locations_checked
-        )
+        for loc_name, loc_id in DISH_LOCATIONS.items():
+            if not any(loc.name == loc_name for loc in dish_region.locations):
+                loc = PlateUpLocation(self.player, loc_name, loc_id, parent=dish_region)
+                dish_region.locations.append(loc)  # ✅ Register dish location
+
+        print(f"Registered {len(dish_region.locations)} dish locations in 'Dish Checks'.")
+
+
+
+
+
+
+
+    def set_rules(self):
+        multiworld = self.multiworld
+        player = self.player
+
+        # 🔥 Set Completion Goal Based on Player's Selected Goal
+        goal_mapping = {
+            0: "Franchise Once",
+            1: "Franchise Twice",
+            2: "Franchise Thrice",
+        }
+        
+        required_location = goal_mapping.get(multiworld.goal[player].value, "Franchise Once")
+
+        multiworld.completion_condition[player] = lambda state: state.can_reach(required_location, "Location", player)
+
+        # 🔥 Ensure Franchise Progression is Reachable
+        franchise_order = [
+            "Franchise Once", "Complete First Day After Franchised", "Complete Second Day After Franchised",
+            "Complete Third Day After Franchised", "First Star Franchised", "Complete Fourth Day After Franchised",
+            "Complete Fifth Day After Franchised", "Complete Day 6 After Franchised", "Second Star Franchised",
+            "Complete Day 7 After Franchised", "Complete Day 8 After Franchised", "Complete Day 9 After Franchised",
+            "Third Star Franchised", "Complete Day 10 After Franchised", "Complete Day 11 After Franchised",
+            "Complete Day 12 After Franchised", "Fourth Star Franchised", "Complete Day 13 After Franchised",
+            "Complete Day 14 After Franchised", "Complete Day 15 After Franchised", "Fifth Star Franchised",
+            "Complete Day 16 After Franchised", "Complete Day 17 After Franchised", "Complete Day 18 After Franchised",
+            "Complete Day 19 After Franchised", "Complete Day 20 After Franchised", "Franchise Twice",
+            "Complete First Day After Franchised Twice", "Complete Second Day After Franchised Twice",
+            "Complete Third Day After Franchised Twice", "First Star Franchised Twice", "Complete Fourth Day After Franchised Twice",
+            "Complete Fifth Day After Franchised Twice", "Complete Day 6 After Franchised Twice", "Second Star Franchised Twice",
+            "Complete Day 7 After Franchised Twice", "Complete Day 8 After Franchised Twice", "Complete Day 9 After Franchised Twice",
+            "Third Star Franchised Twice", "Complete Day 10 After Franchised Twice", "Complete Day 11 After Franchised Twice",
+            "Complete Day 12 After Franchised Twice", "Fourth Star Franchised Twice", "Complete Day 13 After Franchised Twice",
+            "Complete Day 14 After Franchised Twice", "Complete Day 15 After Franchised Twice", "Fifth Star Franchised Twice",
+            "Complete Day 16 After Franchised Twice", "Complete Day 17 After Franchised Twice", "Complete Day 18 After Franchised Twice",
+            "Complete Day 19 After Franchised Twice", "Complete Day 20 After Franchised Twice", "Franchise Thrice"
+        ]
+
+        for i in range(len(franchise_order) - 1):
+            current_location = franchise_order[i]
+            next_location = franchise_order[i + 1]
+            
+            multiworld.get_location(next_location, player).access_rule = lambda state, cur=current_location: state.can_reach(cur, "Location", player)
+
+        print(f"Final Completion Goal: {required_location}")
+
+
+
+
+
+
+
 
     def fill_slot_data(self):
         goal_value = self.multiworld.goal[self.player].value

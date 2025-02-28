@@ -105,16 +105,12 @@ dish_dictionary = {
     115: "Stir Fry",
 }
 
-def add_filtered_dish_locations(selected_dishes):
-    """Only adds locations for selected dishes to the global LOCATIONS dictionary"""
-    global LOCATIONS
+DISH_LOCATIONS: Dict[str, int] = {}
 
-    for dish_id in selected_dishes:
-        dish_name = dish_dictionary[dish_id]  # Retrieve dish name
-        for day in range(1, 16):  # Days 1 to 15
-            location_name = f"{dish_name} - Day {day}"
-            location_id = (dish_id * 1000) + day  # Unique ID
-            LOCATIONS[location_name] = location_id  # Add named location
+# Register all possible dish locations
+for dish_id, dish_name in dish_dictionary.items():
+    for day in range(1, 16):
+        location_name = f"{dish_name} - Day {day}"
+        location_id = (dish_id * 1000) + day
+        DISH_LOCATIONS[location_name] = location_id  # Always exists
 
-
-    print(f"LOCATIONS after filtering: {list(LOCATIONS.keys())}")
