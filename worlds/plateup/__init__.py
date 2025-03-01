@@ -8,6 +8,7 @@ from BaseClasses import Region, ItemClassification, LocationProgressType
 from .Items import ITEMS, PlateUpItem
 from .Locations import LOCATIONS, DISH_LOCATIONS, PlateUpLocation, dish_dictionary
 from .Options import plateup_options
+from .Rules import apply_rules
 
 class PlateUpWorld(World):
     game = "plateup"
@@ -94,6 +95,10 @@ class PlateUpWorld(World):
             if classification != ItemClassification.filler and name != "Speed Upgrade Player"
         ]
 
+        # Ensure exactly 5 copies of "Speed Upgrade Player" are added
+        speed_upgrade_item = self.create_item("Speed Upgrade Player", ItemClassification.progression)
+        plateup_items.extend([speed_upgrade_item] * 5)
+
         # Ensure enough items exist to fill all valid locations
         min_items_required = len(available_dish_locations) + len(available_progression_locations)
 
@@ -118,10 +123,6 @@ class PlateUpWorld(World):
         print(f"Filled {len(all_valid_locations)} locations with {len(self.itempool)} items.")
 
 
-
-
-
-
     @classmethod
     def get_filler_item_name(cls):
         return "Hob"
@@ -141,50 +142,12 @@ class PlateUpWorld(World):
         print(f"Registered {len(dish_region.locations)} dish locations in 'Dish Checks'.")
 
     def set_rules(self):
+        """Set progression rules for PlateUp."""
         multiworld = self.multiworld
         player = self.player
 
-        # Retrieve all registered locations (only valid locations that exist in the MultiWorld)
-        registered_locations = {loc.name for loc in multiworld.get_locations(player)}
+        apply_rules(multiworld, player)  # Call the function from Rules.py
 
-        # Define ordered progression checks
-        franchise_order = [
-            "Lose a Run", "Complete First Day", "Complete Second Day", "Complete Third Day",
-            "First Star", "Complete Fourth Day", "Complete Fifth Day", "Complete Day 6", "Second Star",
-            "Complete Day 7", "Complete Day 8", "Complete Day 9", "Third Star", "Complete Day 10",
-            "Complete Day 11", "Complete Day 12", "Fourth Star", "Complete Day 13", "Complete Day 14",
-            "Complete Day 15", "Fifth Star", "Complete Day 16", "Complete Day 17", "Complete Day 18",
-            "Complete Day 19", "Complete Day 20", "Franchise Once", "Complete First Day After Franchised",
-            "Complete Second Day After Franchised", "Complete Third Day After Franchised", "First Star Franchised",
-            "Complete Fourth Day After Franchised", "Complete Fifth Day After Franchised", "Complete Day 6 After Franchised",
-            "Second Star Franchised", "Complete Day 7 After Franchised", "Complete Day 8 After Franchised",
-            "Complete Day 9 After Franchised", "Third Star Franchised", "Complete Day 10 After Franchised",
-            "Complete Day 11 After Franchised", "Complete Day 12 After Franchised", "Fourth Star Franchised",
-            "Complete Day 13 After Franchised", "Complete Day 14 After Franchised", "Complete Day 15 After Franchised",
-            "Fifth Star Franchised", "Complete Day 16 After Franchised", "Complete Day 17 After Franchised",
-            "Complete Day 18 After Franchised", "Complete Day 19 After Franchised", "Complete Day 20 After Franchised",
-            "Franchise Twice", "Complete First Day After Franchised Twice", "Complete Second Day After Franchised Twice",
-            "Complete Third Day After Franchised Twice", "First Star Franchised Twice", "Complete Fourth Day After Franchised Twice",
-            "Complete Fifth Day After Franchised Twice", "Complete Day 6 After Franchised Twice", "Second Star Franchised Twice",
-            "Complete Day 7 After Franchised Twice", "Complete Day 8 After Franchised Twice", "Complete Day 9 After Franchised Twice",
-            "Third Star Franchised Twice", "Complete Day 10 After Franchised Twice", "Complete Day 11 After Franchised Twice",
-            "Complete Day 12 After Franchised Twice", "Fourth Star Franchised Twice", "Complete Day 13 After Franchised Twice",
-            "Complete Day 14 After Franchised Twice", "Complete Day 15 After Franchised Twice", "Fifth Star Franchised Twice",
-            "Complete Day 16 After Franchised Twice", "Complete Day 17 After Franchised Twice", "Complete Day 18 After Franchised Twice",
-            "Complete Day 19 After Franchised Twice", "Complete Day 20 After Franchised Twice", "Franchise Thrice"
-        ]
-
-        # Filter franchise_order to only include registered locations
-        franchise_order = [loc for loc in franchise_order if loc in registered_locations]
-
-        # Apply access rules only to registered locations
-        for i in range(len(franchise_order) - 1):
-            current_location = franchise_order[i]
-            next_location = franchise_order[i + 1]
-
-            multiworld.get_location(next_location, player).access_rule = lambda state, cur=current_location: state.can_reach(cur, "Location", player)
-
-        print(f"Final Completion Goal: {franchise_order[-1] if franchise_order else 'None'}")
 
 
     def fill_slot_data(self):
