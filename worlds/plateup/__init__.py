@@ -1,12 +1,10 @@
-import re
-import json
 import random
 from dataclasses import dataclass, field
 from Options import PerGameCommonOptions
 from worlds.AutoWorld import World
-from BaseClasses import Region, ItemClassification, LocationProgressType
+from BaseClasses import Region, ItemClassification
 from .Items import ITEMS, PlateUpItem
-from .Locations import LOCATIONS, DISH_LOCATIONS, PlateUpLocation, dish_dictionary
+from .Locations import LOCATIONS, DISH_LOCATIONS
 from .Options import plateup_options
 from .Rules import apply_rules
 
@@ -17,138 +15,63 @@ class PlateUpWorld(World):
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
     location_name_to_id = {**LOCATIONS, **DISH_LOCATIONS}
 
-    def create_item(self, name: str, classification: ItemClassification = ItemClassification.progression):
+    def create_item(self, name: str, classification: ItemClassification = ItemClassification.progression) -> PlateUpItem:
+        """Create a PlateUp item with the given classification."""
         return PlateUpItem(name, classification, self.item_name_to_id[name], self.player)
 
     def create_items(self):
+        """
+        This function properly populates the item pool with PlateUp items.
+        Ensures items are generated and included in the MultiWorld fill process.
+        """
         multiworld = self.multiworld
         player = self.player
 
-        # Define excluded progression locations for different goals
-        excluded_locations = {
-            0: [  # Franchise Once
-                "Complete First Day After Franchised Twice", "Complete Second Day After Franchised Twice",
-                "Complete Third Day After Franchised Twice", "First Star Franchised Twice",
-                "Complete Fourth Day After Franchised Twice", "Complete Fifth Day After Franchised Twice",
-                "Complete Day 6 After Franchised Twice", "Second Star Franchised Twice",
-                "Complete Day 7 After Franchised Twice", "Complete Day 8 After Franchised Twice",
-                "Complete Day 9 After Franchised Twice", "Third Star Franchised Twice",
-                "Complete Day 10 After Franchised Twice", "Complete Day 11 After Franchised Twice",
-                "Complete Day 12 After Franchised Twice", "Fourth Star Franchised Twice",
-                "Complete Day 13 After Franchised Twice", "Complete Day 14 After Franchised Twice",
-                "Complete Day 15 After Franchised Twice", "Fifth Star Franchised Twice",
-                "Complete Day 16 After Franchised Twice", "Complete Day 17 After Franchised Twice",
-                "Complete Day 18 After Franchised Twice", "Complete Day 19 After Franchised Twice",
-                "Complete Day 20 After Franchised Twice", "Franchise Thrice"
-            ],
-            1: [  # Franchise Twice
-                "Complete First Day After Franchised Twice", "Complete Second Day After Franchised Twice",
-                "Complete Third Day After Franchised Twice", "First Star Franchised Twice",
-                "Complete Fourth Day After Franchised Twice", "Complete Fifth Day After Franchised Twice",
-                "Complete Day 6 After Franchised Twice", "Second Star Franchised Twice",
-                "Complete Day 7 After Franchised Twice", "Complete Day 8 After Franchised Twice",
-                "Complete Day 9 After Franchised Twice", "Third Star Franchised Twice",
-                "Complete Day 10 After Franchised Twice", "Complete Day 11 After Franchised Twice",
-                "Complete Day 12 After Franchised Twice", "Fourth Star Franchised Twice",
-                "Complete Day 13 After Franchised Twice", "Complete Day 14 After Franchised Twice",
-                "Complete Day 15 After Franchised Twice", "Fifth Star Franchised Twice",
-                "Complete Day 16 After Franchised Twice", "Complete Day 17 After Franchised Twice",
-                "Complete Day 18 After Franchised Twice", "Complete Day 19 After Franchised Twice",
-                "Complete Day 20 After Franchised Twice", "Franchise Thrice"
-            ],
-            2: []  # Franchise Thrice (Exclude nothing)
-        }
+        if not hasattr(multiworld.worlds[player], "progression_locations"):
+            multiworld.worlds[player].progression_locations = []
 
-        # Fetch selected goal
-        goal_value = multiworld.goal[player].value
+        if not hasattr(multiworld.worlds[player], "valid_dish_locations"):
+            from .Rules import filter_selected_dishes
+            filter_selected_dishes(multiworld, player)  # Run dish filtering
 
-        # Retrieve excluded progression checks
-        excluded_progression_checks = set(excluded_locations.get(goal_value, []))
+        valid_dish_locations = multiworld.worlds[player].valid_dish_locations
+        progression_locations = multiworld.worlds[player].progression_locations
 
-        # Retrieve registered dish and progression locations from Regions.py
-        dish_region = multiworld.get_region("Dish Checks", player)
-        progression_region = multiworld.get_region("Progression", player)
+        # Determine minimum required items to fill all valid locations
+        min_items_required = len(valid_dish_locations) + len(progression_locations)
 
-        # Fetch selected dishes
-        selected_dishes = set(multiworld.selected_dishes[player])
+        item_pool = []
+        item_counts = {}
 
-        # Extract filtered locations that were registered
-        available_dish_locations = {
-            loc.name: loc for loc in dish_region.locations
-            if any(dish in loc.name for dish in selected_dishes)
-        }
+        # Create all PlateUp-specific items
+        for item_name, item_id in self.item_name_to_id.items():
+            item = self.create_item(item_name)
+            item_pool.append(item)
+            item_counts[item_name] = item_counts.get(item_name, 0) + 1
 
-        available_progression_locations = {
-            loc.name: loc for loc in progression_region.locations
-        }
+        # Add five "Speed Upgrade Player" items explicitly
+        item_pool += [self.create_item("Speed Upgrade Player") for _ in range(5)]
 
-        print(f"Filtered Available Dish Locations: {list(available_dish_locations.keys())}")
-        print(f"Filtered Available Progression Locations: {list(available_progression_locations.keys())}")
+        # Ensure the item count matches the number of locations
+        if len(item_pool) < min_items_required:
+            filler_needed = min_items_required - len(item_pool)
+            for _ in range(filler_needed):
+                item_pool.append(self.create_item(self.get_filler_item_name()))
 
-        # Fetch MultiWorld items first
-        multiworld_items = list(multiworld.get_items())
+        self.multiworld.itempool += item_pool
 
-        # Generate PlateUp items (excluding Speed Upgrade Player)
-        plateup_items = [
-            self.create_item(name, classification)
-            for name, (item_id, classification) in ITEMS.items()
-            if classification != ItemClassification.filler and name != "Speed Upgrade Player"
-        ]
-
-        # Ensure exactly 5 copies of "Speed Upgrade Player" are added
-        speed_upgrade_item = self.create_item("Speed Upgrade Player", ItemClassification.progression)
-        plateup_items.extend([speed_upgrade_item] * 5)
-
-        # Ensure enough items exist to fill all valid locations
-        min_items_required = len(available_dish_locations) + len(available_progression_locations)
-
-        while len(multiworld_items) + len(plateup_items) < min_items_required:
-            next_item = random.choice(list(ITEMS.keys()))
-            if next_item != "Speed Upgrade Player":
-                plateup_items.append(self.create_item(next_item, ItemClassification.progression))
-
-        # Combine MultiWorld Items + PlateUp Items
-        self.itempool = multiworld_items + plateup_items
-
-        # Shuffle item pool to randomize placement
-        random.shuffle(self.itempool)
-
-        # Assign Items to Locations (Only for filtered dish & progression checks)
-        all_valid_locations = list(available_progression_locations.values()) + list(available_dish_locations.values())
-
-        for loc, item in zip(all_valid_locations, self.itempool):
-            if not loc.item:
-                loc.place_locked_item(item)
-
-        print(f"Filled {len(all_valid_locations)} locations with {len(self.itempool)} items.")
-
-
-    @classmethod
-    def get_filler_item_name(cls):
-        return "Hob"
+        print(f"PlateUp items added: {len(item_pool)}")
+        print(f"Total locations to fill: {min_items_required}")
+        print(f"Valid Dish Locations: {valid_dish_locations}")
+        print(f"Progression Locations: {progression_locations}")
 
     def create_regions(self):
         from .Regions import create_plateup_regions
         create_plateup_regions(self.multiworld, self.player)
 
-        # 🔥 Ensure dish locations are properly registered in the MultiWorld system
-        dish_region = self.multiworld.get_region("Dish Checks", self.player)
-
-        for loc_name, loc_id in DISH_LOCATIONS.items():
-            if not any(loc.name == loc_name for loc in dish_region.locations):
-                loc = PlateUpLocation(self.player, loc_name, loc_id, parent=dish_region)
-                dish_region.locations.append(loc)  # ✅ Register dish location
-
-        print(f"Registered {len(dish_region.locations)} dish locations in 'Dish Checks'.")
-
     def set_rules(self):
         """Set progression rules for PlateUp."""
-        multiworld = self.multiworld
-        player = self.player
-
-        apply_rules(multiworld, player)  # Call the function from Rules.py
-
-
+        apply_rules(self.multiworld, self.player)
 
     def fill_slot_data(self):
         goal_value = self.multiworld.goal[self.player].value
@@ -156,8 +79,8 @@ class PlateUpWorld(World):
 
         return {
             "goal": goal_value,
-            "selected_dishes": json.dumps(selected_dishes)  # Store as a JSON string
+            "selected_dishes": selected_dishes
         }
 
-
-
+    def get_filler_item_name(self):
+        return "Hob"

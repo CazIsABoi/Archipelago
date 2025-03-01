@@ -108,9 +108,6 @@ ITEMS = {
     # "Doughnut Tray": (10163, ItemClassification.filler),
     "Extra Life": (10164, ItemClassification.progression),
     #endregion
-
-    #region Speed Unlocks
     "Speed Upgrade Player": (10, ItemClassification.progression),
-    #endregion
 }
 
