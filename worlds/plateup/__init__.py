@@ -115,7 +115,7 @@ class PlateUpWorld(World):
 
             for i in range(filler_items_needed):
                 filler_name = filler_list[i % len(filler_list)]
-                print(f"✅ Adding filler item: {filler_name}")  # Debugging Output
+                print(f"Adding filler item: {filler_name}")  # Debugging Output
                 item_pool.append(self.create_item(filler_name, ItemClassification.filler))
         print(f"Filler Items Needed: {filler_items_needed}")
 

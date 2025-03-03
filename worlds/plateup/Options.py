@@ -4,11 +4,12 @@ from typing import Dict, Set
 
 # --- Goal Option ---
 class Goal(Choice):
+    """Set the franchise goal for completion."""
     display_name = "Goal"
     option_franchise_once = 0
     option_franchise_twice = 1
     option_franchise_thrice = 2
-    default = 0  # Default to "Franchise Once"
+    default = 0
 
 class DishCount(Range):
     """Select how many dishes the player starts with (between 1-15).
@@ -56,9 +57,9 @@ class Accessibility(Choice):
 
 # --- PlateUp Options ---
 class PlateUpOptions(PerGameCommonOptions):
-    goal: Goal = Goal.default
-    dish: DishCount = DishCount.default
-    death_link: DeathLink = DeathLink.default
-    death_link_behavior: DeathLinkBehavior = DeathLinkBehavior.default
+    goal: Goal
+    dish: DishCount
+    death_link: DeathLink
+    death_link_behavior: DeathLinkBehavior
 
 
