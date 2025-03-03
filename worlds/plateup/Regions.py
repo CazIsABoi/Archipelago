@@ -59,7 +59,7 @@ def create_plateup_regions(multiworld, player):
             "Complete Day 15 After Franchised", "Fifth Star Franchised",
             "Complete Day 16 After Franchised", "Complete Day 17 After Franchised",
             "Complete Day 18 After Franchised", "Complete Day 19 After Franchised",
-            "Complete Day 20 After Franchised", "Franchise Thrice",
+            "Complete Day 20 After Franchised", "Franchise Twice",
             "Complete First Day After Franchised Twice", "Complete Second Day After Franchised Twice",
             "Complete Third Day After Franchised Twice", "First Star Franchised Twice",
             "Complete Fourth Day After Franchised Twice", "Complete Fifth Day After Franchised Twice",

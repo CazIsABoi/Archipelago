@@ -149,9 +149,15 @@ class PlateUpWorld(World):
         goal_value = self.multiworld.goal[self.player].value
         selected_dishes = list(self.multiworld.selected_dishes.get(self.player, []))
 
+        # Fetch DeathLink settings
+        death_link_enabled = self.multiworld.death_link[self.player].value
+        death_link_behavior = self.multiworld.death_link_behavior[self.player].value
+
         return {
             "goal": goal_value,
-            "selected_dishes": selected_dishes
+            "selected_dishes": selected_dishes,
+            "death_link": death_link_enabled,  # Store if DeathLink is enabled (0 or 1)
+            "death_link_behavior": death_link_behavior  # Store selected DeathLink behavior
         }
 
     def get_filler_item_name(self):
