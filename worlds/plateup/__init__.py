@@ -5,12 +5,13 @@ from worlds.AutoWorld import World
 from BaseClasses import Region, ItemClassification
 from .Items import ITEMS, PlateUpItem, FILLER_ITEMS
 from .Locations import LOCATIONS, DISH_LOCATIONS
-from .Options import plateup_options
+from .Options import PlateUpOptions
+
 from .Rules import apply_rules
 
 class PlateUpWorld(World):
     game = "plateup"
-    options_dataclass = plateup_options
+    options_dataclass = PlateUpOptions
 
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
     location_name_to_id = {**LOCATIONS, **DISH_LOCATIONS}
@@ -57,9 +58,9 @@ class PlateUpWorld(World):
         valid_dish_locations = multiworld.worlds[player].valid_dish_locations
         if hasattr(multiworld.worlds[player], "progression_locations"):
             progression_locations = multiworld.worlds[player].progression_locations
-            print(f"✅ Loaded Progression Locations for Player {player}: {progression_locations}")
+            print(f"Loaded Progression Locations for Player {player}: {progression_locations}")
         else:
-            print(f"🚨 ERROR: Progression locations were not set in `Regions.py` for Player {player}! Using empty list.")
+            print(f"ERROR: Progression locations were not set in `Regions.py` for Player {player}! Using empty list.")
             progression_locations = []
 
 

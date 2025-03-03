@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-import yaml
 from Options import Choice, PerGameCommonOptions, ItemSet, ItemDict, Range, OptionError, Toggle
+from typing import Dict, Set
 
 # --- Goal Option ---
 class Goal(Choice):
@@ -55,26 +55,10 @@ class Accessibility(Choice):
     default = 0  # Default to "Full"
 
 # --- PlateUp Options ---
-@dataclass
 class PlateUpOptions(PerGameCommonOptions):
-    goal: Goal = field(default_factory=lambda: Goal(Goal.default))
-    dish: DishCount = field(default_factory=lambda: DishCount(DishCount.default)) 
-    accessibility: Accessibility = field(default_factory=lambda: Accessibility(Accessibility.default))
-    death_link: DeathLink = field(default_factory=lambda: DeathLink(DeathLink.default))
-    death_link_behavior: DeathLinkBehavior = field(default_factory=lambda: DeathLinkBehavior(DeathLinkBehavior.default))
-    local_items: ItemSet = field(default_factory=ItemSet)
-    non_local_items: ItemSet = field(default_factory=ItemSet)
-    start_inventory: ItemDict = field(default_factory=ItemDict)
-    start_hints: ItemSet = field(default_factory=ItemSet)
-    start_location_hints: ItemSet = field(default_factory=ItemSet)
-    exclude_locations: ItemSet = field(default_factory=ItemSet)
-    priority_locations: ItemSet = field(default_factory=ItemSet)
-    item_links: ItemSet = field(default_factory=ItemSet)
+    goal: Goal = Goal.default
+    dish: DishCount = DishCount.default
+    death_link: DeathLink = DeathLink.default
+    death_link_behavior: DeathLinkBehavior = DeathLinkBehavior.default
 
 
-    def to_yaml(self) -> str:
-        """Serialize the options to a YAML-formatted string."""
-        data = {key: getattr(self, key).value for key in self.__annotations__}
-        return yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
-
-plateup_options = PlateUpOptions
