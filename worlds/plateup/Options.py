@@ -56,6 +56,7 @@ class Accessibility(Choice):
     default = 0  # Default to "Full"
 
 # --- PlateUp Options ---
+@dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
     dish: DishCount
