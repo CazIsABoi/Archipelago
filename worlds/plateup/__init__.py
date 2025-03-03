@@ -21,12 +21,13 @@ class PlateUpWorld(World):
 
     def create_items(self):
         """
-        This function properly populates the item pool with PlateUp items.
+        Populates the item pool with PlateUp items.
         Ensures items are generated and included in the MultiWorld fill process.
         """
         multiworld = self.multiworld
         player = self.player
 
+        # Ensure locations are properly filtered and initialized
         if not hasattr(multiworld.worlds[player], "progression_locations"):
             multiworld.worlds[player].progression_locations = []
 
@@ -34,36 +35,43 @@ class PlateUpWorld(World):
             from .Rules import filter_selected_dishes
             filter_selected_dishes(multiworld, player)  # Run dish filtering
 
+        # Fetch the actual locations **after filtering**
         valid_dish_locations = multiworld.worlds[player].valid_dish_locations
         progression_locations = multiworld.worlds[player].progression_locations
 
-        # Determine minimum required items to fill all valid locations
-        min_items_required = len(valid_dish_locations) + len(progression_locations)
+        # Total number of locations to be filled
+        total_locations = len(valid_dish_locations) + len(progression_locations)
 
+        # Initialize item pool
         item_pool = []
-        item_counts = {}
 
-        # Create all PlateUp-specific items
-        for item_name, item_id in self.item_name_to_id.items():
-            item = self.create_item(item_name)
-            item_pool.append(item)
-            item_counts[item_name] = item_counts.get(item_name, 0) + 1
+        # Add all PlateUp items **except** "Speed Upgrade Player"
+        plateup_items = [self.create_item(item_name) for item_name in self.item_name_to_id if item_name != "Speed Upgrade Player"]
+        item_pool.extend(plateup_items)
 
-        # Add five "Speed Upgrade Player" items explicitly
+        # Add exactly 5 "Speed Upgrade Player" items
         item_pool += [self.create_item("Speed Upgrade Player") for _ in range(5)]
 
-        # Ensure the item count matches the number of locations
-        if len(item_pool) < min_items_required:
-            filler_needed = min_items_required - len(item_pool)
-            for _ in range(filler_needed):
-                item_pool.append(self.create_item(self.get_filler_item_name()))
+        # **Ensure the number of items matches the number of locations**
+        existing_items = len(item_pool)
+        items_needed = total_locations - existing_items  # Difference between locations and items
 
+        # If there are more locations than items, cycle through the item table repeatedly until all locations are filled
+        if items_needed > 0:
+            item_list = [name for name in self.item_name_to_id if name != "Speed Upgrade Player"]
+            item_index = 0
+            while len(item_pool) < total_locations:
+                item_pool.append(self.create_item(item_list[item_index % len(item_list)]))
+                item_index += 1
+
+        # Assign the filled item pool to the MultiWorld
         self.multiworld.itempool += item_pool
 
-        print(f"PlateUp items added: {len(item_pool)}")
-        print(f"Total locations to fill: {min_items_required}")
-        print(f"Valid Dish Locations: {valid_dish_locations}")
-        print(f"Progression Locations: {progression_locations}")
+        # Debugging output
+        print(f"PlateUp items added: {len(item_pool)} (Target: {total_locations})")
+        print(f"Total locations to fill: {total_locations}")
+        print(f"Valid Dish Locations Count: {len(valid_dish_locations)}")
+        print(f"Progression Locations Count: {len(progression_locations)}")
 
     def create_regions(self):
         from .Regions import create_plateup_regions
