@@ -3,48 +3,56 @@ from .Locations import PlateUpLocation, LOCATIONS, DISH_LOCATIONS, dish_dictiona
 from BaseClasses import Region
 
 def create_plateup_regions(multiworld, player):
+    """Creates PlateUp regions per player and assigns dish locations correctly."""
+
+    # Ensure 'selected_dishes' is initialized for this player
+    if not hasattr(multiworld, "selected_dishes"):
+        multiworld.selected_dishes = {}
+    if player not in multiworld.selected_dishes:
+        multiworld.selected_dishes[player] = []
+
     # Create regions
     menu_region = Region("Menu", player, multiworld)
     progression_region = Region("Progression", player, multiworld)
     dish_region = Region("Dish Checks", player, multiworld)
 
-    # Add regions to the multiworld
-    multiworld.regions.extend([menu_region, progression_region, dish_region])
+    # Avoid adding duplicate regions
+    if menu_region not in multiworld.regions:
+        multiworld.regions.extend([menu_region, progression_region, dish_region])
 
     # Set region connections
     menu_region.connect(progression_region)
     progression_region.connect(dish_region)
 
-    # Ensure dish selection exists
-    if not hasattr(multiworld, "selected_dishes"):
-        multiworld.selected_dishes = {}
-
-    # Select dishes (ensuring they are stored as **names**)
+    # Select dishes per player
     dish_count = multiworld.dish[player].value
-    all_dish_names = list(dish_dictionary.values())  # Fetch **dish names**
+    all_dish_names = list(dish_dictionary.values())
     selected_dishes = random.sample(all_dish_names, min(dish_count, len(all_dish_names)))
-    multiworld.selected_dishes[player] = selected_dishes  # Store dish names
+    multiworld.selected_dishes[player] = selected_dishes
 
-    print(f"Selected Dishes: {multiworld.selected_dishes[player]}")
+    print(f"[Player {player}] Selected Dishes: {multiworld.selected_dishes[player]}")
 
-    # Identify unselected **dish names**
+    # Identify excluded dish checks
     unselected_dishes = set(all_dish_names) - set(selected_dishes)
-
-    # Define excluded dish checks based on **dish names**
     excluded_dish_checks = {
         loc_name for loc_name in DISH_LOCATIONS
         if any(dish_name in loc_name for dish_name in unselected_dishes)
     }
 
-    print(f"Excluded Dish Locations: {excluded_dish_checks}")  # Debugging
+    print(f"[Player {player}] Excluded Dish Locations: {excluded_dish_checks}")
 
-    # Register dish locations, excluding unselected dish checks
+    # Register valid dish locations
     for loc_name, loc_id in DISH_LOCATIONS.items():
         if loc_name not in excluded_dish_checks:
             loc = PlateUpLocation(player, loc_name, loc_id, parent=dish_region)
             dish_region.locations.append(loc)
 
-    # Goal-based location exclusion
+    multiworld.worlds[player].valid_dish_locations = [
+    loc.name for loc in dish_region.locations
+    ]
+    print(f"[Player {player}] ✅ Stored Valid Dish Locations in MultiWorld: {multiworld.worlds[player].valid_dish_locations}")
+
+    # Goal-based location exclusions
     excluded_locations = {
         0: [  # Franchise Once
             "Complete First Day After Franchised", "Complete Second Day After Franchised",
@@ -92,18 +100,22 @@ def create_plateup_regions(multiworld, player):
         2: []  # Franchise Thrice (Exclude nothing)
     }
 
-    goal_value = multiworld.goal[player].value  # Ensure goal_value is set before use
-
-    print(f"DEBUG: Goal Value: {goal_value}")
-
-    excluded_progression_checks = set(excluded_locations.get(goal_value, []))
-    print(f"DEBUG: Excluded Progression Locations: {excluded_progression_checks}")
-
     goal_value = multiworld.goal[player].value
+    print(f"[Player {player}] DEBUG: Goal Value: {goal_value}")
+
     excluded_progression_checks = set(excluded_locations.get(goal_value, []))
+    print(f"[Player {player}] DEBUG: Excluded Progression Locations: {excluded_progression_checks}")
+
+    valid_progression_locations = [
+        loc_name for loc_name in LOCATIONS if loc_name not in excluded_progression_checks
+    ]
+
+        # Store valid progression locations
+    if not hasattr(multiworld.worlds[player], "progression_locations"):
+        print(f"[Player {player}] ❌ `progression_locations` attribute missing. Initializing it.")
+        multiworld.worlds[player].progression_locations = []
 
     valid_progression_locations = []
-
     for loc_name, loc_id in LOCATIONS.items():
         if loc_name not in excluded_progression_checks:
             loc = PlateUpLocation(player, loc_name, loc_id, parent=progression_region)
@@ -111,9 +123,11 @@ def create_plateup_regions(multiworld, player):
             valid_progression_locations.append(loc_name)
 
     multiworld.worlds[player].progression_locations = valid_progression_locations
-    print(f"✅ Stored Progression Locations in MultiWorld: {multiworld.worlds[player].progression_locations}")
+    print(f"[Player {player}] ✅ Stored Progression Locations in MultiWorld: {multiworld.worlds[player].progression_locations}")
 
+    # Ensure it exists before printing
+    if hasattr(multiworld.worlds[player], "progression_locations"):
+        print(f"[Player {player}] Final Progression Locations: {multiworld.worlds[player].progression_locations}")
+    else:
+        print(f"[Player {player}] ❌ ERROR: Progression Locations were not set correctly!")
 
-
-    print(f"Registered Dish Locations: {[loc.name for loc in dish_region.locations]}")  # Debugging
-    print(f"Registered Progression Locations: {[loc.name for loc in progression_region.locations]}")  # Debugging

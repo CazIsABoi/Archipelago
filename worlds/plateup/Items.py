@@ -109,6 +109,11 @@ ITEMS = {
     "Extra Life": (10164, ItemClassification.progression),
     #endregion
     "Speed Upgrade Player": (10, ItemClassification.progression),
+    #region traps
+    "EVERYTHING IS ON FIRE": (20000, ItemClassification.trap),
+    "Super Slow": (20001, ItemClassification.trap),
+    #"Random Customer Card": (20002, ItemClassification.trap),
+    #endregion
 }
 
 FILLER_ITEMS = {

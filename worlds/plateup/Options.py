@@ -23,6 +23,18 @@ class DishCount(Range):
     range_end = 15  # Maximum: 15 dishes
     default = 1  # Default to 1 dish
 
+class ItemsKept(Range):
+    """Select how many appliances the player should keep each run.
+
+    You can define additional values between the minimum and maximum.
+    - Minimum value: 1
+    - Maximum value: 5
+    """
+    display_name = "Starting Appliance Count"
+    range_start = 1  # Minimum: 1
+    range_end = 5  # Maximum: 5 
+    default = 1  # Default to 1 
+
 # Deathlink Toggle
 class DeathLink(Toggle):
     """When you die, everyone who enabled death link dies. Of course, the reverse is true too."""
@@ -42,8 +54,6 @@ class DeathLinkBehavior(Choice):
     option_reset_to_last_star = 1
     default = 0  # Default behavior is resetting the run
 
-
-
 class Accessibility(Choice):
     """Set rules for reachability of your items/locations.
     
@@ -60,6 +70,7 @@ class Accessibility(Choice):
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
     dish: DishCount
+    appliances_kept: ItemsKept
     death_link: DeathLink
     death_link_behavior: DeathLinkBehavior
 
