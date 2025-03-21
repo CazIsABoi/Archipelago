@@ -4,8 +4,9 @@ from Options import PerGameCommonOptions
 from worlds.AutoWorld import World
 from BaseClasses import Region, ItemClassification
 from .Items import ITEMS, PlateUpItem, FILLER_ITEMS
-from .Locations import LOCATIONS, DISH_LOCATIONS
+from .Locations import DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS
 from .Options import PlateUpOptions
+from .Rules import filter_selected_dishes, apply_rules
 
 
 class PlateUpWorld(World):
@@ -13,7 +14,11 @@ class PlateUpWorld(World):
     options_dataclass = PlateUpOptions
 
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
-    location_name_to_id = {**LOCATIONS, **DISH_LOCATIONS}
+    location_name_to_id = {
+    **FRANCHISE_LOCATION_DICT,
+    **DAY_LOCATION_DICT,
+    **DISH_LOCATIONS
+}
 
     def create_item(self, name: str, classification: ItemClassification = ItemClassification.filler) -> PlateUpItem:
         """Create a PlateUp item, properly handling filler items."""
@@ -60,9 +65,10 @@ class PlateUpWorld(World):
         # Add exactly 5 "Speed Upgrade Player" items per player
         speed_upgrade_count = 5
         for _ in range(speed_upgrade_count):
-            item = self.create_item("Speed Upgrade Player")
-            item_pool.append(item)
-            print(f"DEBUG: Added Speed Upgrade Player for Player {player}")
+            item_pool.append(self.create_item("Speed Upgrade Player"))
+            item_pool.append(self.create_item("Speed Upgrade Appliance"))
+
+        item_pool += [self.create_item("Random Customer Card") for _ in range(3)]
 
         # Debugging: Initial check on item counts
         print(f"Player {player} - Total Locations Detected: {total_locations}")
@@ -101,22 +107,30 @@ class PlateUpWorld(World):
         create_plateup_regions(self.multiworld, self.player)
 
     def set_rules(self):
-        """Applies access rules for PlateUp to ensure progression works correctly per player."""
         multiworld = self.multiworld
         player = self.player
 
-        # Ensure valid_dish_locations is set before applying rules
+        # If these haven't been set, do it:
         if not hasattr(multiworld.worlds[player], "valid_dish_locations"):
-            from .Rules import filter_selected_dishes
-            print(f"⚠ `valid_dish_locations` missing for Player {player}, running `filter_selected_dishes()` now...")
             filter_selected_dishes(multiworld, player)
-
-        # Ensure progression locations are initialized
         if not hasattr(multiworld.worlds[player], "progression_locations"):
             multiworld.worlds[player].progression_locations = []
 
+        # -------------
+        # If the goal is franchise-based, we only want to keep checks up to user-chosen franchise_count.
+        user_goal = multiworld.goal[player].value
+        if user_goal == 0:  # franchise-based
+            required = multiworld.franchise_count[player].value
+            for i in range(required + 1, 11):
+                name = f"Franchise {i} times"
+                if name in FRANCHISE_LOCATION_DICT:
+                    loc_id = FRANCHISE_LOCATION_DICT[name]
+                    EXCLUDED_LOCATIONS.add(loc_id)
+
+        # Then apply your normal day/franchise chaining rules if you want them:
         from .Rules import apply_rules
         apply_rules(multiworld, player)
+
 
     def fill_slot_data(self):
         player = self.player  # Ensure we're using the correct player ID
@@ -127,11 +141,14 @@ class PlateUpWorld(World):
 
         return {
             "goal": self.multiworld.goal[player].value,
+            "franchise_count": self.multiworld.franchise_count[player].value if hasattr(self.multiworld, "franchise_count") else 1,
+            "day_count": self.multiworld.day_count[player].value if hasattr(self.multiworld, "day_count") else 1,
             "selected_dishes": list(self.multiworld.selected_dishes[player]),
             "death_link": self.multiworld.death_link[player].value,
             "death_link_behavior": self.multiworld.death_link_behavior[player].value,
             "items_kept": self.multiworld.appliances_kept[player].value
         }
+
 
     def get_filler_item_name(self):
         return "Hob"

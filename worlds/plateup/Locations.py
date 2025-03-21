@@ -1,10 +1,18 @@
-from typing import Dict
+from typing import Dict, Set
 from BaseClasses import Location
 
 class PlateUpLocation(Location):
     game = "plateup"
 
-LOCATIONS: Dict[str, int] = {
+EXCLUDED_LOCATIONS: Set[int] = set()
+
+##############################################################################
+# FRANCHISE-BASED DICTIONARY
+##############################################################################
+# For your franchise runs, you said you want e.g. "Lose a Run," day checks
+# (1..20 or whichever you want), plus anything like "Fifth Star Franchised 9 times," etc.
+
+FRANCHISE_LOCATION_DICT: Dict[str, int] = {
     "Lose a Run": 100000,
     "Complete First Day": 100001,
     "Complete Second Day": 100002,
@@ -31,7 +39,6 @@ LOCATIONS: Dict[str, int] = {
     "Complete Day 18": 100018,
     "Complete Day 19": 100019,
     "Complete Day 20": 100020,
-    "Franchise Once": 200000,
     "Complete First Day After Franchised": 200001,
     "Complete Second Day After Franchised": 200002,
     "Complete Third Day After Franchised": 200003,
@@ -57,7 +64,6 @@ LOCATIONS: Dict[str, int] = {
     "Complete Day 18 After Franchised": 200018,
     "Complete Day 19 After Franchised": 200019,
     "Complete Day 20 After Franchised": 200020,
-    "Franchise Twice": 300000,
     "Complete First Day After Franchised Twice": 300001,
     "Complete Second Day After Franchised Twice": 300002,
     "Complete Third Day After Franchised Twice": 300003,
@@ -83,10 +89,214 @@ LOCATIONS: Dict[str, int] = {
     "Complete Day 18 After Franchised Twice": 300018,
     "Complete Day 19 After Franchised Twice": 300019,
     "Complete Day 20 After Franchised Twice": 300020,
-    "Franchise Thrice": 400000,
+    "Complete First Day After Franchised Thrice": 400001,
+    "Complete Second Day After Franchised Thrice": 400002,
+    "Complete Third Day After Franchised Thrice": 400003,
+    "First Star Franchised Thrice": 4000031,
+    "Complete Fourth Day After Franchised Thrice": 400004,
+    "Complete Fifth Day After Franchised Thrice": 400005,
+    "Complete Day 6 After Franchised Thrice": 400006,
+    "Second Star Franchised Thrice": 4000061,
+    "Complete Day 7 After Franchised Thrice": 400007,
+    "Complete Day 8 After Franchised Thrice": 400008,
+    "Complete Day 9 After Franchised Thrice": 400009,
+    "Third Star Franchised Thrice": 4000091,
+    "Complete Day 10 After Franchised Thrice": 400010,
+    "Complete Day 11 After Franchised Thrice": 400011,
+    "Complete Day 12 After Franchised Thrice": 400012,
+    "Fourth Star Franchised Thrice": 40000121,
+    "Complete Day 13 After Franchised Thrice": 400013,
+    "Complete Day 14 After Franchised Thrice": 400014,
+    "Complete Day 15 After Franchised Thrice": 400015,
+    "Fifth Star Franchised Thrice": 40000151,
+    "Complete Day 16 After Franchised Thrice": 400016,
+    "Complete Day 17 After Franchised Thrice": 400017,
+    "Complete Day 18 After Franchised Thrice": 400018,
+    "Complete Day 19 After Franchised Thrice": 400019,
+    "Complete Day 20 After Franchised Thrice": 400020,
+    "Complete First Day After Franchised 4 times": 500001,
+    "Complete Second Day After Franchised 4 times": 500002,
+    "Complete Third Day After Franchised 4 times": 500003,
+    "First Star Franchised 4 times": 5000031,
+    "Complete Fourth Day After Franchised 4 times": 500004,
+    "Complete Fifth Day After Franchised 4 times": 500005,
+    "Complete Day 6 After Franchised 4 times": 500006,
+    "Second Star Franchised 4 times": 5000061,
+    "Complete Day 7 After Franchised 4 times": 500007,
+    "Complete Day 8 After Franchised 4 times": 500008,
+    "Complete Day 9 After Franchised 4 times": 500009,
+    "Third Star Franchised 4 times": 5000091,
+    "Complete Day 10 After Franchised 4 times": 500010,
+    "Complete Day 11 After Franchised 4 times": 500011,
+    "Complete Day 12 After Franchised 4 times": 500012,
+    "Fourth Star Franchised 4 times": 50000121,
+    "Complete Day 13 After Franchised 4 times": 500013,
+    "Complete Day 14 After Franchised 4 times": 500014,
+    "Complete Day 15 After Franchised 4 times": 500015,
+    "Fifth Star Franchised 4 times": 50000151,
+    "Complete Day 16 After Franchised 4 times": 500016,
+    "Complete Day 17 After Franchised 4 times": 500017,
+    "Complete Day 18 After Franchised 4 times": 500018,
+    "Complete Day 19 After Franchised 4 times": 500019,
+    "Complete Day 20 After Franchised 4 times": 500020,
+    "Complete First Day After Franchised 5 times": 600001,
+    "Complete Second Day After Franchised 5 times": 600002,
+    "Complete Third Day After Franchised 5 times": 600003,
+    "First Star Franchised 5 times": 6000031,
+    "Complete Fourth Day After Franchised 5 times": 600004,
+    "Complete Fifth Day After Franchised 5 times": 600005,
+    "Complete Day 6 After Franchised 5 times": 600006,
+    "Second Star Franchised 5 times": 6000061,
+    "Complete Day 7 After Franchised 5 times": 600007,
+    "Complete Day 8 After Franchised 5 times": 600008,
+    "Complete Day 9 After Franchised 5 times": 600009,
+    "Third Star Franchised 5 times": 6000091,
+    "Complete Day 10 After Franchised 5 times": 600010,
+    "Complete Day 11 After Franchised 5 times": 600011,
+    "Complete Day 12 After Franchised 5 times": 600012,
+    "Fourth Star Franchised 5 times": 60000121,
+    "Complete Day 13 After Franchised 5 times": 600013,
+    "Complete Day 14 After Franchised 5 times": 600014,
+    "Complete Day 15 After Franchised 5 times": 600015,
+    "Fifth Star Franchised 5 times": 60000151,
+    "Complete Day 16 After Franchised 5 times": 600016,
+    "Complete Day 17 After Franchised 5 times": 600017,
+    "Complete Day 18 After Franchised 5 times": 600018,
+    "Complete Day 19 After Franchised 5 times": 600019,
+    "Complete Day 20 After Franchised 5 times": 600020,
+    "Complete First Day After Franchised 6 times": 700001,
+    "Complete Second Day After Franchised 6 times": 700002,
+    "Complete Third Day After Franchised 6 times": 700003,
+    "First Star Franchised 6 times": 7000031,
+    "Complete Fourth Day After Franchised 6 times": 700004,
+    "Complete Fifth Day After Franchised 6 times": 700005,
+    "Complete Day 6 After Franchised 6 times": 700006,
+    "Second Star Franchised 6 times": 7000061,
+    "Complete Day 7 After Franchised 6 times": 700007,
+    "Complete Day 8 After Franchised 6 times": 700008,
+    "Complete Day 9 After Franchised 6 times": 700009,
+    "Third Star Franchised 6 times": 7000091,
+    "Complete Day 10 After Franchised 6 times": 600010,
+    "Complete Day 11 After Franchised 6 times": 600011,
+    "Complete Day 12 After Franchised 6 times": 600012,
+    "Fourth Star Franchised 6 times": 70000121,
+    "Complete Day 13 After Franchised 6 times": 700013,
+    "Complete Day 14 After Franchised 6 times": 700014,
+    "Complete Day 15 After Franchised 6 times": 700015,
+    "Fifth Star Franchised 6 times": 70000151,
+    "Complete Day 16 After Franchised 6 times": 700016,
+    "Complete Day 17 After Franchised 6 times": 700017,
+    "Complete Day 18 After Franchised 6 times": 700018,
+    "Complete Day 19 After Franchised 6 times": 700019,
+    "Complete Day 20 After Franchised 6 times": 700020,
+    "Complete First Day After Franchised 7 times": 800001,
+    "Complete Second Day After Franchised 7 times": 800002,
+    "Complete Third Day After Franchised 7 times": 800003,
+    "First Star Franchised 7 times": 8000031,
+    "Complete Fourth Day After Franchised 7 times": 800004,
+    "Complete Fifth Day After Franchised 7 times": 800005,
+    "Complete Day 6 After Franchised 7 times": 800006,
+    "Second Star Franchised 7 times": 8000061,
+    "Complete Day 7 After Franchised 7 times": 800007,
+    "Complete Day 8 After Franchised 7 times": 800008,
+    "Complete Day 9 After Franchised 7 times": 800009,
+    "Third Star Franchised 7 times": 8000091,
+    "Complete Day 10 After Franchised 7 times": 800010,
+    "Complete Day 11 After Franchised 7 times": 800011,
+    "Complete Day 12 After Franchised 7 times": 800012,
+    "Fourth Star Franchised 7 times": 80000121,
+    "Complete Day 13 After Franchised 7 times": 800013,
+    "Complete Day 14 After Franchised 7 times": 800014,
+    "Complete Day 15 After Franchised 7 times": 800015,
+    "Fifth Star Franchised 7 times": 80000151,
+    "Complete Day 16 After Franchised 7 times": 800016,
+    "Complete Day 17 After Franchised 7 times": 800017,
+    "Complete Day 18 After Franchised 7 times": 800018,
+    "Complete Day 19 After Franchised 7 times": 800019,
+    "Complete Day 20 After Franchised 7 times": 800020,
+    "Complete First Day After Franchised 8 times": 900001,
+    "Complete Second Day After Franchised 8 times": 900002,
+    "Complete Third Day After Franchised 8 times": 900003,
+    "First Star Franchised 8 times": 9000031,
+    "Complete Fourth Day After Franchised 8 times": 900004,
+    "Complete Fifth Day After Franchised 8 times": 900005,
+    "Complete Day 6 After Franchised 8 times": 900006,
+    "Second Star Franchised 8 times": 9000061,
+    "Complete Day 7 After Franchised 8 times": 900007,
+    "Complete Day 8 After Franchised 8 times": 900008,
+    "Complete Day 9 After Franchised 8 times": 900009,
+    "Third Star Franchised 8 times": 9000091,
+    "Complete Day 10 After Franchised 8 times": 900010,
+    "Complete Day 11 After Franchised 8 times": 900011,
+    "Complete Day 12 After Franchised 8 times": 900012,
+    "Fourth Star Franchised 8 times": 90000121,
+    "Complete Day 13 After Franchised 8 times": 900013,
+    "Complete Day 14 After Franchised 8 times": 900014,
+    "Complete Day 15 After Franchised 8 times": 900015,
+    "Fifth Star Franchised 8 times": 90000151,
+    "Complete Day 16 After Franchised 8 times": 900016,
+    "Complete Day 17 After Franchised 8 times": 900017,
+    "Complete Day 18 After Franchised 8 times": 900018,
+    "Complete Day 19 After Franchised 8 times": 900019,
+    "Complete Day 20 After Franchised 8 times": 900020,
+    "Complete First Day After Franchised 9 times": 1000001,
+    "Complete Second Day After Franchised 9 times": 1000002,
+    "Complete Third Day After Franchised 9 times": 1000003,
+    "First Star Franchised 9 times": 10000031,
+    "Complete Fourth Day After Franchised 9 times": 1000004,
+    "Complete Fifth Day After Franchised 9 times": 1000005,
+    "Complete Day 6 After Franchised 9 times": 1000006,
+    "Second Star Franchised 9 times": 10000061,
+    "Complete Day 7 After Franchised 9 times": 1000007,
+    "Complete Day 8 After Franchised 9 times": 1000008,
+    "Complete Day 9 After Franchised 9 times": 1000009,
+    "Third Star Franchised 9 times": 10000091,
+    "Complete Day 10 After Franchised 9 times": 1000010,
+    "Complete Day 11 After Franchised 9 times": 1000011,
+    "Complete Day 12 After Franchised 9 times": 1000012,
+    "Fourth Star Franchised 9 times": 100000121,
+    "Complete Day 13 After Franchised 9 times": 1000013,
+    "Complete Day 14 After Franchised 9 times": 1000014,
+    "Complete Day 15 After Franchised 9 times": 1000015,
+    "Fifth Star Franchised 9 times": 100000151,
+    "Complete Day 16 After Franchised 9 times": 1000016,
+    "Complete Day 17 After Franchised 9 times": 1000017,
+    "Complete Day 18 After Franchised 9 times": 1000018,
+    "Complete Day 19 After Franchised 9 times": 1000019,
+    "Complete Day 20 After Franchised 9 times": 1000020,
 }
 
-# Dish Dictionary with their ID prefixes
+for i in range(1, 11):
+    name = f"Franchise {i} times"
+    # i=1 => 200000, i=2 => 300000, ... i=10 => 1100000
+    loc_id = 100000 * (i + 1)
+    FRANCHISE_LOCATION_DICT[name] = loc_id
+
+# Always exclude days 16..20 from progression
+for day in range(16, 21):
+    key = f"Complete Day {day}"
+    if key in FRANCHISE_LOCATION_DICT:
+        EXCLUDED_LOCATIONS.add(FRANCHISE_LOCATION_DICT[key])
+
+DAY_LOCATION_DICT: Dict[str, int] = {
+    "Lose a Run": 100000
+}
+
+# Day checks up to 100
+for i in range(1, 101):
+    # e.g. “Complete Day 1” => ID=110001
+    day_loc_id = 110000 + i
+    day_name = f"Complete Day {i}"
+    DAY_LOCATION_DICT[day_name] = day_loc_id
+
+# Star checks up to 33
+for i in range(1, 34):
+    # e.g. “Complete Star 1” => ID=120001
+    star_loc_id = 120000 + i
+    star_name = f"Complete Star {i}"
+    DAY_LOCATION_DICT[star_name] = star_loc_id
+
+
 dish_dictionary = {
     101: "Salad",
     102: "Steak",
@@ -106,11 +316,8 @@ dish_dictionary = {
 }
 
 DISH_LOCATIONS: Dict[str, int] = {}
-
-# Register all possible dish locations
 for dish_id, dish_name in dish_dictionary.items():
     for day in range(1, 16):
-        location_name = f"{dish_name} - Day {day}"
-        location_id = (dish_id * 1000) + day
-        DISH_LOCATIONS[location_name] = location_id  # Always exists
-
+        loc_name = f"{dish_name} - Day {day}"
+        loc_id = (dish_id * 1000) + day
+        DISH_LOCATIONS[loc_name] = loc_id

@@ -108,11 +108,17 @@ ITEMS = {
     # "Doughnut Tray": (10163, ItemClassification.filler),
     "Extra Life": (10164, ItemClassification.progression),
     #endregion
+    #region Speed
     "Speed Upgrade Player": (10, ItemClassification.progression),
+    "Speed Upgrade Appliance": (11, ItemClassification.progression),
+    #"Speed Upgrade Cook": (12, ItemClassification.progression),
+    #"Speed Upgrade Chop": (13, ItemClassification.progression),
+    #"Speed Upgrade Clean": (14, ItemClassification.progression),
+    #endregion
     #region traps
     "EVERYTHING IS ON FIRE": (20000, ItemClassification.trap),
     "Super Slow": (20001, ItemClassification.trap),
-    #"Random Customer Card": (20002, ItemClassification.trap),
+    "Random Customer Card": (20002, ItemClassification.trap),
     #endregion
 }
 

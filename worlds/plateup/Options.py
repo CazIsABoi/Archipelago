@@ -1,77 +1,60 @@
-from dataclasses import dataclass, field
-from Options import Choice, PerGameCommonOptions, ItemSet, ItemDict, Range, OptionError, Toggle
-from typing import Dict, Set
+from dataclasses import dataclass
+from Options import Choice, PerGameCommonOptions, Range, Toggle
 
-# --- Goal Option ---
+# --- Goal Selection ---
 class Goal(Choice):
-    """Set the franchise goal for completion."""
+    """Set the goal for completion."""
     display_name = "Goal"
-    option_franchise_once = 0
-    option_franchise_twice = 1
-    option_franchise_thrice = 2
+    option_franchise_x_times = 0
+    option_complete_x_days = 1
     default = 0
 
-class DishCount(Range):
-    """Select how many dishes the player starts with (between 1-15).
+class FranchiseCount(Range):
+    """Select how many franchises are required for completion."""
+    display_name = "Required Franchise Count"
+    range_start = 1
+    range_end = 10
+    default = 1  
 
-    You can define additional values between the minimum and maximum.
-    - Minimum value: 1
-    - Maximum value: 15
-    """
+class DayCount(Range):
+    """Select how many days are required for completion. WON'T DO ANYTHING IF COMPLETE_X_DAYS IS SELECTED"""
+    display_name = "Required Day Count"
+    range_start = 1
+    range_end = 100
+    default = 1  
+
+class DishCount(Range):
+    """Select how many dishes the player starts with (between 1-15). WON'T DO ANYTHING IF FRANCHISE_X_TIMES IS SELECTED"""
     display_name = "Starting Dish Count"
-    range_start = 1  # Minimum: 1 dish
-    range_end = 15  # Maximum: 15 dishes
-    default = 1  # Default to 1 dish
+    range_start = 1
+    range_end = 15
+    default = 1
 
 class ItemsKept(Range):
-    """Select how many appliances the player should keep each run.
-
-    You can define additional values between the minimum and maximum.
-    - Minimum value: 1
-    - Maximum value: 5
-    """
+    """Select how many appliances the player keeps each run."""
     display_name = "Starting Appliance Count"
-    range_start = 1  # Minimum: 1
-    range_end = 5  # Maximum: 5 
-    default = 1  # Default to 1 
+    range_start = 1
+    range_end = 5
+    default = 1
 
-# Deathlink Toggle
 class DeathLink(Toggle):
-    """When you die, everyone who enabled death link dies. Of course, the reverse is true too."""
+    """Enable death link mode, affecting all linked players."""
     display_name = "Death Link"
-    rich_text_doc = True
-    default = 0  # Default is disabled
+    default = 0
 
-# Deathlink Behavior Choice
 class DeathLinkBehavior(Choice):
-    """Choose what happens when DeathLink triggers:
-    
-    - **Reset Run:** The entire run is reset.
-    - **Reset to Last Star:** Resets to the last earned star instead of fully resetting.
-    """
+    """Choose what happens when DeathLink triggers."""
     display_name = "Death Link Behavior"
     option_reset_run = 0
     option_reset_to_last_star = 1
-    default = 0  # Default behavior is resetting the run
+    default = 0
 
-class Accessibility(Choice):
-    """Set rules for reachability of your items/locations.
-    
-    - **Full:** Ensure everything can be reached and acquired.
-    - **Minimal:** Ensure what is needed to reach your goal can be acquired.
-    """
-    display_name = "Accessibility"
-    option_full = 0
-    option_minimal = 1
-    default = 0  # Default to "Full"
-
-# --- PlateUp Options ---
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
+    franchise_count: FranchiseCount
+    day_count: DayCount
     dish: DishCount
     appliances_kept: ItemsKept
     death_link: DeathLink
     death_link_behavior: DeathLinkBehavior
-
-

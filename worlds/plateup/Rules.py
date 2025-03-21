@@ -1,27 +1,23 @@
+# Rules.py
 import typing
+import random
 from BaseClasses import MultiWorld, Location
 from Options import Accessibility
-from .Locations import DISH_LOCATIONS, dish_dictionary
-import random
-import typing
-if typing.TYPE_CHECKING:
-    from .__init__ import PlateUpWorld 
+from .Locations import (
+    DAY_LOCATION_DICT,
+    FRANCHISE_LOCATION_DICT,
+    EXCLUDED_LOCATIONS,
+    DISH_LOCATIONS,
+    dish_dictionary
+)
 
 if typing.TYPE_CHECKING:
-    import BaseClasses
+    from .__init__ import PlateUpWorld
 
-    CollectionRule = typing.Callable[[BaseClasses.CollectionState], bool]
-    ItemRule = typing.Callable[[BaseClasses.Item], bool]
-else:
-    CollectionRule = typing.Callable[[object], bool]
-    ItemRule = typing.Callable[[object], bool]
-
-def set_rule(spot: typing.Union["BaseClasses.Location", "BaseClasses.Entrance"], rule: CollectionRule):
-    """Sets an access rule on a location or entrance."""
+def set_rule(spot: typing.Union["BaseClasses.Location", "BaseClasses.Entrance"], rule):
     spot.access_rule = rule
 
-def add_rule(spot: typing.Union["BaseClasses.Location", "BaseClasses.Entrance"], rule: CollectionRule, combine="and"):
-    """Adds an access rule while preserving existing ones."""
+def add_rule(spot: typing.Union["BaseClasses.Location", "BaseClasses.Entrance"], rule, combine="and"):
     old_rule = spot.access_rule
     if old_rule is Location.access_rule:
         spot.access_rule = rule if combine == "and" else old_rule
@@ -32,61 +28,93 @@ def add_rule(spot: typing.Union["BaseClasses.Location", "BaseClasses.Entrance"],
             spot.access_rule = lambda state: rule(state) or old_rule(state)
 
 def restrict_locations_by_progression(multiworld: MultiWorld, player: int):
-    """Enforces a sequential progression system for PlateUp."""
-    
-    plateup_world = multiworld.worlds[player]
+    """
+    (Optional) If you want some dish-based progression chaining, etc.
+    """
 
+    plateup_world = multiworld.worlds[player]
     if not hasattr(plateup_world, "valid_dish_locations"):
-        print(f"⚠ `valid_dish_locations` missing for Player {player}, skipping progression rules.")
+        print(f"⚠ `valid_dish_locations` missing for Player {player}, skipping dish-based progression.")
         return
 
-    franchise_order = plateup_world.valid_dish_locations
-
-    for i in range(len(franchise_order) - 1):
-        current_location = franchise_order[i]
-        next_location = franchise_order[i + 1]
-
-        if next_location in plateup_world.location_name_to_id:
+    dish_order = plateup_world.valid_dish_locations
+    for i in range(len(dish_order) - 1):
+        current_loc_name = dish_order[i]
+        next_loc_name = dish_order[i + 1]
+        if next_loc_name in plateup_world.location_name_to_id:
             try:
-                loc = multiworld.get_location(next_location, player)
-                loc.access_rule = lambda state, cur=current_location: state.can_reach(cur, "Location", player)
+                loc = multiworld.get_location(next_loc_name, player)
+                loc.access_rule = lambda state, cur=current_loc_name: state.can_reach(cur, "Location", player)
             except KeyError:
-                print(f"⚠ Skipping rule for {next_location}: Not found in MultiWorld.")
-        else:
-            print(f"⚠ {next_location} not found in location_name_to_id, skipping.")
+                pass
 
 def filter_selected_dishes(multiworld: MultiWorld, player: int):
-    """Filters out dish locations based on selected dishes in `Options.py`."""
-    
+    """
+    If user picks "dish=3", we randomly pick 3 dishes out of the set,
+    store them in multiworld.selected_dishes, etc.
+    """
+    if not hasattr(multiworld, "selected_dishes"):
+        multiworld.selected_dishes = {}
+
     if hasattr(multiworld.worlds[player], "valid_dish_locations") and multiworld.worlds[player].valid_dish_locations:
         print(f"✅ Dish filtering already done for Player {player}, skipping.")
-        return  # Prevent duplicate calls
+        return
 
     print(f"⚠ `valid_dish_locations` missing for Player {player}, running `filter_selected_dishes()` now...")
 
-    # Ensure player exists and is playing PlateUp
-    if multiworld.worlds[player].game != "plateup":
-        print(f"⚠ Skipping dish filtering for Player {player}: Not a PlateUp player.")
+    plateup_world = multiworld.worlds[player]
+    if plateup_world.game != "plateup":
+        print(f"⚠ Skipping dish filtering: Player {player} is not PlateUp.")
         return
 
-    dish_count = multiworld.dish[player].value  # Number of dishes selected
-    all_dish_names = list(dish_dictionary.values())
-    selected_dishes = random.sample(all_dish_names, min(dish_count, len(all_dish_names)))
-    multiworld.selected_dishes[player] = selected_dishes
+    dish_count = multiworld.dish[player].value
+    all_dishes = list(dish_dictionary.values())
+    selected = random.sample(all_dishes, min(dish_count, len(all_dishes)))
+    multiworld.selected_dishes[player] = selected
 
-    print(f"✅ Selected Dishes for Player {player}: {selected_dishes}")
-
-    valid_dish_locations = []
-    for dish in selected_dishes:
+    valid_locs = []
+    for dish in selected:
         for day in range(1, 16):
-            location_name = f"{dish} - Day {day}"
-            if location_name in DISH_LOCATIONS:
-                valid_dish_locations.append(location_name)
+            loc_name = f"{dish} - Day {day}"
+            if loc_name in DISH_LOCATIONS:
+                valid_locs.append(loc_name)
 
-    # Store the valid locations to be used by Fill.py
-    multiworld.worlds[player].valid_dish_locations = valid_dish_locations
-    print(f"✅ Filtered Dish Locations for Player {player}: {valid_dish_locations}")
+    plateup_world.valid_dish_locations = valid_locs
+    print(f"✅ Filtered Dish Locations for Player {player}: {valid_locs}")
 
 def apply_rules(multiworld: MultiWorld, player: int):
-    """Apply all game rules for PlateUp."""
-    restrict_locations_by_progression(multiworld, player)
+    """
+    Chain days or franchise checks if needed.
+    """
+    plateup_world = multiworld.worlds[player]
+    goal_type = plateup_world.options.goal.value  # 0 => franchise, 1 => day
+
+    # Day-chaining
+    if goal_type == 1:
+        for i in range(2, 101):
+            current_day = f"Complete Day {i}"
+            prev_day = f"Complete Day {i-1}"
+            try:
+                loc_current = multiworld.get_location(current_day, player)
+                loc_current.access_rule = (
+                    lambda state, p=prev_day: state.can_reach(p, "Location", player)
+                )
+            except KeyError:
+                pass
+
+    # Franchise-chaining
+    else:
+        # chain “Franchise 2 times” => “Franchise 1 times”, up to user’s chosen franchise_count
+        for i in range(2, 11):
+            current_name = f"Franchise {i} times"
+            prev_name = f"Franchise {i-1} times"
+            try:
+                loc_current = multiworld.get_location(current_name, player)
+                loc_current.access_rule = (
+                    lambda state, p=prev_name: state.can_reach(p, "Location", player)
+                )
+            except KeyError:
+                pass
+
+
+    print(f"[Player {player}] Finished apply_rules for goal={goal_type}")
