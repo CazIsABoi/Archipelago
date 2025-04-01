@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from Options import Choice, PerGameCommonOptions, Range, Toggle
 
-# --- Goal Selection ---
 class Goal(Choice):
     """Set the goal for completion."""
     display_name = "Goal"
@@ -14,24 +13,24 @@ class FranchiseCount(Range):
     display_name = "Required Franchise Count"
     range_start = 1
     range_end = 10
-    default = 1  
+    default = 1
 
 class DayCount(Range):
-    """Select how many days are required for completion. WON'T DO ANYTHING IF COMPLETE_X_DAYS IS SELECTED"""
+    """Select how many days are required for completion. (Only used if Goal=complete_x_days)"""
     display_name = "Required Day Count"
-    range_start = 1
+    range_start = 10
     range_end = 100
-    default = 1  
+    default = 10
 
 class DishCount(Range):
-    """Select how many dishes the player starts with (between 1-15). WON'T DO ANYTHING IF FRANCHISE_X_TIMES IS SELECTED"""
+    """How many dishes the player starts with (1-15)."""
     display_name = "Starting Dish Count"
     range_start = 1
     range_end = 15
     default = 1
 
 class ItemsKept(Range):
-    """Select how many appliances the player keeps each run."""
+    """How many appliances the player keeps each run."""
     display_name = "Starting Appliance Count"
     range_start = 1
     range_end = 5
@@ -49,6 +48,16 @@ class DeathLinkBehavior(Choice):
     option_reset_to_last_star = 1
     default = 0
 
+class ApplianceSpeedMode(Choice):
+    """
+    Choose whether all Speed Upgrade Appliances are "grouped" (single item),
+    or "separate" (Cook, Chop, Clean).
+    """
+    display_name = "Appliance Speed Upgrade Mode"
+    option_grouped = 0
+    option_separate = 1
+    default = 0
+
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
@@ -58,3 +67,4 @@ class PlateUpOptions(PerGameCommonOptions):
     appliances_kept: ItemsKept
     death_link: DeathLink
     death_link_behavior: DeathLinkBehavior
+    appliance_speed_mode: ApplianceSpeedMode

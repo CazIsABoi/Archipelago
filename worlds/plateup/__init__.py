@@ -15,18 +15,14 @@ class PlateUpWorld(World):
 
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
     location_name_to_id = {
-    **FRANCHISE_LOCATION_DICT,
-    **DAY_LOCATION_DICT,
-    **DISH_LOCATIONS
-}
+        **FRANCHISE_LOCATION_DICT,
+        **DAY_LOCATION_DICT,
+        **DISH_LOCATIONS
+    }
 
     def create_item(self, name: str, classification: ItemClassification = ItemClassification.filler) -> PlateUpItem:
-        """Create a PlateUp item, properly handling filler items."""
-        
-        # Check if item exists in regular ITEMS list
         if name in self.item_name_to_id:
             item_id = self.item_name_to_id[name]
-        # Otherwise, check the FILLER_ITEMS list
         elif name in FILLER_ITEMS:
             item_id = FILLER_ITEMS[name][0]
         else:
@@ -35,71 +31,60 @@ class PlateUpWorld(World):
         return PlateUpItem(name, classification, item_id, self.player)
 
     def create_items(self):
-        """
-        Populates the item pool with PlateUp items for each player independently.
-        Ensures items are generated per-player and included in the MultiWorld fill process.
-        """
         multiworld = self.multiworld
         player = self.player
 
-        # Ensure locations are properly initialized (should already be set in create_plateup_regions)
         valid_dish_locations = getattr(multiworld.worlds[player], "valid_dish_locations", [])
         progression_locations = getattr(multiworld.worlds[player], "progression_locations", [])
-
-        # Total number of locations to be filled per player
         total_locations = len(valid_dish_locations) + len(progression_locations)
         if total_locations == 0:
-            print(f"⚠ Player {player} has no valid locations to place items!")
-            return  # No locations, no items needed.
+            print(f"Player {player} has no valid locations to place items!")
+            return
 
-        # Initialize item pool per player
         item_pool = []
 
-        # Add all PlateUp items **except** "Speed Upgrade Player"
-        plateup_items = [
-            self.create_item(item_name) for item_name in self.item_name_to_id
-            if item_name != "Speed Upgrade Player"
-        ][:total_locations]  # Prevent overfilling
-        item_pool.extend(plateup_items)
+        normal_item_names = [
+            name for name in self.item_name_to_id
+            if name != "Speed Upgrade Player"
+        ]
+        sliced_normal_items = normal_item_names[:total_locations]
 
-        # Add exactly 5 "Speed Upgrade Player" items per player
-        speed_upgrade_count = 5
-        for _ in range(speed_upgrade_count):
-            item_pool.append(self.create_item("Speed Upgrade Player"))
-            item_pool.append(self.create_item("Speed Upgrade Appliance"))
+        for item_name in sliced_normal_items:
+            item_pool.append(self.create_item(item_name))
 
-        item_pool += [self.create_item("Random Customer Card") for _ in range(3)]
+        speed_mode = multiworld.appliance_speed_mode[player].value
+        for _ in range(5):
+            item_pool.append(self.create_item("Speed Upgrade Player", classification=ItemClassification.progression))
 
-        # Debugging: Initial check on item counts
-        print(f"Player {player} - Total Locations Detected: {total_locations}")
-        print(f"Player {player} - Initial Item Count: {len(item_pool)}")
+        if speed_mode == 0:
+            for _ in range(5):
+                item_pool.append(self.create_item("Speed Upgrade Appliance", classification=ItemClassification.progression))
+        else:
+            for _ in range(5):
+                item_pool.append(self.create_item("Speed Upgrade Cook", classification=ItemClassification.progression))
+            for _ in range(5):
+                item_pool.append(self.create_item("Speed Upgrade Clean", classification=ItemClassification.progression))
+            for _ in range(5):
+                item_pool.append(self.create_item("Speed Upgrade Chop", classification=ItemClassification.progression))
 
-        # Ensure the number of items matches the number of locations
-        existing_items = len(item_pool)
-        items_needed = total_locations - existing_items
+        for _ in range(3):
+            item_pool.append(self.create_item("Random Customer Card", classification=ItemClassification.trap))
 
-        # If there are more locations than items, cycle through available items
+        existing_count = len(item_pool)
+        items_needed = total_locations - existing_count
         if items_needed > 0:
-            item_list = [name for name in self.item_name_to_id if name != "Speed Upgrade Player"]
-            for _ in range(items_needed):
-                item_pool.append(self.create_item(item_list[_ % len(item_list)]))  # Rotates through item list
+            i = 0
+            while len(item_pool) < total_locations:
+                pick_name = normal_item_names[i % len(normal_item_names)]
+                item_pool.append(self.create_item(pick_name))
+                i += 1
 
-        print(f"Player {player} - Item Count After Cycling: {len(item_pool)}")
-
-        # If we still don't have enough items, enforce filler items
         filler_items_needed = total_locations - len(item_pool)
         if filler_items_needed > 0:
-            print(f"Player {player} - Adding {filler_items_needed} filler items to reach {total_locations} total.")
-            filler_list = list(FILLER_ITEMS.keys())
-            for i in range(filler_items_needed):
-                filler_name = filler_list[i % len(filler_list)]
+            for _ in range(filler_items_needed):
+                filler_name = self.get_filler_item_name()
                 item_pool.append(self.create_item(filler_name, ItemClassification.filler))
 
-        # Final debugging check
-        print(f"Player {player} - Final Item Count: {len(item_pool)}")
-        print(f"Player {player} - Filler Items Used: {max(0, len(item_pool) - existing_items)}")
-
-        # Assign the filled item pool only for this player
         multiworld.itempool += item_pool
 
     def create_regions(self):
@@ -110,16 +95,13 @@ class PlateUpWorld(World):
         multiworld = self.multiworld
         player = self.player
 
-        # If these haven't been set, do it:
         if not hasattr(multiworld.worlds[player], "valid_dish_locations"):
             filter_selected_dishes(multiworld, player)
         if not hasattr(multiworld.worlds[player], "progression_locations"):
             multiworld.worlds[player].progression_locations = []
 
-        # -------------
-        # If the goal is franchise-based, we only want to keep checks up to user-chosen franchise_count.
         user_goal = multiworld.goal[player].value
-        if user_goal == 0:  # franchise-based
+        if user_goal == 0:
             required = multiworld.franchise_count[player].value
             for i in range(required + 1, 11):
                 name = f"Franchise {i} times"
@@ -127,16 +109,13 @@ class PlateUpWorld(World):
                     loc_id = FRANCHISE_LOCATION_DICT[name]
                     EXCLUDED_LOCATIONS.add(loc_id)
 
-        # Then apply your normal day/franchise chaining rules if you want them:
-        from .Rules import apply_rules
         apply_rules(multiworld, player)
 
-
     def fill_slot_data(self):
-        player = self.player  # Ensure we're using the correct player ID
+        player = self.player
 
         if player not in self.multiworld.selected_dishes:
-            print(f"⚠ Warning: `selected_dishes` missing for Player {player}. Using empty list.")
+            print(f"Warning: `selected_dishes` missing for Player {player}. Using empty list.")
             self.multiworld.selected_dishes[player] = []
 
         return {
@@ -146,9 +125,9 @@ class PlateUpWorld(World):
             "selected_dishes": list(self.multiworld.selected_dishes[player]),
             "death_link": self.multiworld.death_link[player].value,
             "death_link_behavior": self.multiworld.death_link_behavior[player].value,
-            "items_kept": self.multiworld.appliances_kept[player].value
+            "items_kept": self.multiworld.appliances_kept[player].value,
+            "appliance_speed_mode": self.multiworld.appliance_speed_mode[player].value
         }
-
 
     def get_filler_item_name(self):
         return "Hob"

@@ -6,12 +6,6 @@ class PlateUpLocation(Location):
 
 EXCLUDED_LOCATIONS: Set[int] = set()
 
-##############################################################################
-# FRANCHISE-BASED DICTIONARY
-##############################################################################
-# For your franchise runs, you said you want e.g. "Lose a Run," day checks
-# (1..20 or whichever you want), plus anything like "Fifth Star Franchised 9 times," etc.
-
 FRANCHISE_LOCATION_DICT: Dict[str, int] = {
     "Lose a Run": 100000,
     "Complete First Day": 100001,

@@ -111,9 +111,9 @@ ITEMS = {
     #region Speed
     "Speed Upgrade Player": (10, ItemClassification.progression),
     "Speed Upgrade Appliance": (11, ItemClassification.progression),
-    #"Speed Upgrade Cook": (12, ItemClassification.progression),
-    #"Speed Upgrade Chop": (13, ItemClassification.progression),
-    #"Speed Upgrade Clean": (14, ItemClassification.progression),
+    "Speed Upgrade Cook": (12, ItemClassification.progression),
+    "Speed Upgrade Chop": (13, ItemClassification.progression),
+    "Speed Upgrade Clean": (14, ItemClassification.progression),
     #endregion
     #region traps
     "EVERYTHING IS ON FIRE": (20000, ItemClassification.trap),
