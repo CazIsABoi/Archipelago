@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from Options import PerGameCommonOptions
+from random import choice
 from worlds.AutoWorld import World
 from BaseClasses import Region, ItemClassification, CollectionState
-from .Items import ITEMS, PlateUpItem, FILLER_ITEMS
+from .Items import ITEMS, PlateUpItem
 from .Locations import DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS
 from .Options import PlateUpOptions
 from .Rules import filter_selected_dishes, apply_rules
@@ -12,6 +13,10 @@ from collections import Counter
 class PlateUpWorld(World):
     game = "plateup"
     options_dataclass = PlateUpOptions
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.excluded_locations = set()
 
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
 
@@ -28,7 +33,7 @@ class PlateUpWorld(World):
 
 
     def validate_ids(self):
-        item_ids = list(self.item_name_to_id.values()) + [data[0] for data in FILLER_ITEMS.values()]
+        item_ids = list(self.item_name_to_id.values())
         dupe_items = [item for item, count in Counter(item_ids).items() if count > 1]
         if dupe_items:
             raise Exception(f"Duplicate item IDs found: {dupe_items}")
@@ -42,10 +47,8 @@ class PlateUpWorld(World):
     def create_item(self, name: str, classification: ItemClassification = ItemClassification.filler) -> PlateUpItem:
         if name in self.item_name_to_id:
             item_id = self.item_name_to_id[name]
-        elif name in FILLER_ITEMS:
-            item_id = FILLER_ITEMS[name][0]
         else:
-            raise ValueError(f"Item '{name}' not found in ITEMS or FILLER_ITEMS!")
+            raise ValueError(f"Item '{name}' not found in ITEMS")
 
         return PlateUpItem(name, classification, item_id, self.player)
 
@@ -89,24 +92,11 @@ class PlateUpWorld(World):
         for _ in range(3):
             item_pool.append(self.create_item("Random Customer Card", classification=ItemClassification.trap))
 
-        existing_count = len(item_pool)
-        items_needed = total_locations - existing_count
-        if items_needed > 0:
-            i = 0
-            while len(item_pool) < total_locations:
-                pick_name = normal_item_names[i % len(normal_item_names)]
-                item_pool.append(self.create_item(pick_name))
-                i += 1
+        while len(item_pool) < total_locations:
+            filler_name = self.get_filler_item_name()
+            item_pool.append(self.create_item(filler_name))
 
-        filler_items_needed = total_locations - len(item_pool)
-        if filler_items_needed > 0:
-            for _ in range(filler_items_needed):
-                filler_name = self.get_filler_item_name()
-                item_pool.append(self.create_item(filler_name, ItemClassification.filler))
-
-        assert len(item_pool) == total_locations, f"Mismatch: {len(item_pool)} items for {total_locations} locations"
-
-        multiworld.itempool += item_pool
+        self.multiworld.itempool += item_pool
 
     def create_regions(self):
         from .Regions import create_plateup_regions
@@ -164,4 +154,8 @@ class PlateUpWorld(World):
         }
 
     def get_filler_item_name(self):
-        return "Hob"
+        filler_candidates = [name for name, (code, classification) in ITEMS.items()
+                             if classification == ItemClassification.filler]
+        if not filler_candidates:
+            raise Exception("No filler items available in ITEMS.")
+        return choice(filler_candidates)
