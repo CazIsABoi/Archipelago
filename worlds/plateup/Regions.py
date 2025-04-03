@@ -13,46 +13,38 @@ from .Options import Goal
 
 
 def create_plateup_regions(multiworld, player):
+    from .Locations import PlateUpLocation
+    from .Options import Goal
+
     menu_region = Region("Menu", player, multiworld)
     progression_region = Region("Progression", player, multiworld)
     dish_region = Region("Dish Checks", player, multiworld)
 
-    if menu_region not in multiworld.regions:
-        multiworld.regions.append(menu_region)
-    if progression_region not in multiworld.regions:
-        multiworld.regions.append(progression_region)
-    if dish_region not in multiworld.regions:
-        multiworld.regions.append(dish_region)
-
+    multiworld.regions += [menu_region, progression_region, dish_region]
     menu_region.connect(progression_region)
     progression_region.connect(dish_region)
 
-    user_goal = multiworld.goal[player].value  # 0 => Franchise, 1 => Day
+    user_goal = multiworld.goal[player].value
     progression_locs = []
 
     if user_goal == 0:
-        # ============ FRANCHISE MODE ============
-        # Exclude all day checks
+        # Franchise goal
         for loc_id in DAY_LOCATION_DICT.values():
             EXCLUDED_LOCATIONS.add(loc_id)
 
         required_franchises = multiworld.franchise_count[player].value
-        # If N=3 => exclude everything with ID >= 400000
         max_franchise_id = (required_franchises + 1) * 100000
 
         for name, loc_id in FRANCHISE_LOCATION_DICT.items():
-            if loc_id < max_franchise_id:
-                # It's within the player's selected franchise limit
-                loc_obj = PlateUpLocation(player, name, loc_id, parent=progression_region)
-                progression_region.locations.append(loc_obj)
+            if loc_id < max_franchise_id or name == f"Franchise {required_franchises} times":
+                loc = PlateUpLocation(player, name, loc_id, parent=progression_region)
+                progression_region.locations.append(loc)
                 progression_locs.append(name)
             else:
-                # ID >= max_franchise_id => exclude
                 EXCLUDED_LOCATIONS.add(loc_id)
 
-    else:
-        # ============ DAY MODE ============
-        # Exclude all franchise checks
+    elif user_goal == 1:
+        # Day goal
         for loc_id in FRANCHISE_LOCATION_DICT.values():
             EXCLUDED_LOCATIONS.add(loc_id)
 
@@ -61,26 +53,19 @@ def create_plateup_regions(multiworld, player):
 
         for name, loc_id in DAY_LOCATION_DICT.items():
             if name.startswith("Complete Day "):
-                day_str = name.removeprefix("Complete Day ").strip()
-                if day_str.isdigit():
-                    day_num = int(day_str)
-                    if day_num > required_days:
-                        EXCLUDED_LOCATIONS.add(loc_id)
-                        continue
-            elif name.startswith("Complete Star "):
-                star_str = name.removeprefix("Complete Star ").strip()
-                if star_str.isdigit():
-                    star_num = int(star_str)
-                    if star_num > max_stars:
-                        EXCLUDED_LOCATIONS.add(loc_id)
-                        continue
-                else:
+                day = int(name.removeprefix("Complete Day ").strip())
+                if day > required_days:
                     EXCLUDED_LOCATIONS.add(loc_id)
                     continue
-
-            loc_obj = PlateUpLocation(player, name, loc_id, parent=progression_region)
-            progression_region.locations.append(loc_obj)
+            elif name.startswith("Complete Star "):
+                star = int(name.removeprefix("Complete Star ").strip())
+                if star > max_stars:
+                    EXCLUDED_LOCATIONS.add(loc_id)
+                    continue
+            loc = PlateUpLocation(player, name, loc_id, parent=progression_region)
+            progression_region.locations.append(loc)
             progression_locs.append(name)
 
     multiworld.worlds[player].progression_locations = progression_locs
     print(f"[Player {player}] Final progression-locs: {progression_locs}")
+    progression_locs = []

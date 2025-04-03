@@ -9,7 +9,7 @@ class Goal(Choice):
     default = 0
 
 class FranchiseCount(Range):
-    """Select how many franchises are required for completion."""
+    """Select how many franchises are required for completion.(Only used if Goal=complete_x_franchises)"""
     display_name = "Required Franchise Count"
     range_start = 1
     range_end = 10

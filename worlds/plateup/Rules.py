@@ -85,12 +85,14 @@ def apply_rules(multiworld: MultiWorld, player: int):
 
     else:
         for i in range(2, 11):
-            current_name = f"Franchise {i} times"
-            prev_name = f"Franchise {i-1} times"
+            suffix = "" if i - 1 == 1 else f" {i-1}"
             try:
-                loc_current = multiworld.get_location(current_name, player)
-                loc_current.access_rule = (
-                    lambda state, p=prev_name: state.can_reach(p, "Location", player)
-                )
+                loc = multiworld.get_location(f"Franchise {i} times", player)
+                required_loc = f"Franchise - Complete Day 15 After Franchised{suffix}"
+                loc.access_rule = lambda state, req=required_loc: state.can_reach(req, "Location", player)
             except KeyError:
                 pass
+
+
+
+            

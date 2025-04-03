@@ -81,7 +81,7 @@ ITEMS = {
     "Copying Desk": (10116, ItemClassification.useful),
     "Trainers": (1012, ItemClassification.useful),
     "Wellies": (10122, ItemClassification.filler),
-    "Work Boots": (10122, ItemClassification.filler),
+    "Work Boots": (10123, ItemClassification.filler),
     "Booking Desk": (1013, ItemClassification.filler),
     "Display Stand": (10132, ItemClassification.filler),
     "Dumbwaiter": (10133, ItemClassification.filler),
@@ -123,8 +123,8 @@ ITEMS = {
 }
 
 FILLER_ITEMS = {
-    "Spork": (20001, ItemClassification.filler),
-    "Broken Plate": (20002, ItemClassification.filler),
+    "Spork": (200011, ItemClassification.filler),
+    "Broken Plate": (200021, ItemClassification.filler),
     "Dented Pot": (20003, ItemClassification.filler),
     "Burnt Toast": (20004, ItemClassification.filler),
     "Melted Ladle": (20005, ItemClassification.filler),

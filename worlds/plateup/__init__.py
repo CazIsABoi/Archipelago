@@ -1,12 +1,12 @@
-import random
 from dataclasses import dataclass, field
 from Options import PerGameCommonOptions
 from worlds.AutoWorld import World
-from BaseClasses import Region, ItemClassification
+from BaseClasses import Region, ItemClassification, CollectionState
 from .Items import ITEMS, PlateUpItem, FILLER_ITEMS
 from .Locations import DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS
 from .Options import PlateUpOptions
 from .Rules import filter_selected_dishes, apply_rules
+from collections import Counter
 
 
 class PlateUpWorld(World):
@@ -14,11 +14,30 @@ class PlateUpWorld(World):
     options_dataclass = PlateUpOptions
 
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
-    location_name_to_id = {
-        **FRANCHISE_LOCATION_DICT,
-        **DAY_LOCATION_DICT,
-        **DISH_LOCATIONS
-    }
+
+    location_name_to_id = {**FRANCHISE_LOCATION_DICT, **DAY_LOCATION_DICT, **DISH_LOCATIONS}
+
+    def generate_location_table(self):
+        goal = self.multiworld.goal[self.player].value
+        if goal == 0:
+            locs = {**FRANCHISE_LOCATION_DICT}
+        else:
+            locs = {**DAY_LOCATION_DICT}
+        locs.update(DISH_LOCATIONS)
+        return locs
+
+
+    def validate_ids(self):
+        item_ids = list(self.item_name_to_id.values()) + [data[0] for data in FILLER_ITEMS.values()]
+        dupe_items = [item for item, count in Counter(item_ids).items() if count > 1]
+        if dupe_items:
+            raise Exception(f"Duplicate item IDs found: {dupe_items}")
+
+        loc_ids = list(self.location_name_to_id.values())
+        dupe_locs = [loc for loc, count in Counter(loc_ids).items() if count > 1]
+        if dupe_locs:
+            raise Exception(f"Duplicate location IDs found: {dupe_locs}")
+
 
     def create_item(self, name: str, classification: ItemClassification = ItemClassification.filler) -> PlateUpItem:
         if name in self.item_name_to_id:
@@ -85,10 +104,14 @@ class PlateUpWorld(World):
                 filler_name = self.get_filler_item_name()
                 item_pool.append(self.create_item(filler_name, ItemClassification.filler))
 
+        assert len(item_pool) == total_locations, f"Mismatch: {len(item_pool)} items for {total_locations} locations"
+
         multiworld.itempool += item_pool
 
     def create_regions(self):
         from .Regions import create_plateup_regions
+        self._location_name_to_id = self.generate_location_table()
+        self.validate_ids()
         create_plateup_regions(self.multiworld, self.player)
 
     def set_rules(self):
@@ -109,6 +132,17 @@ class PlateUpWorld(World):
                     loc_id = FRANCHISE_LOCATION_DICT[name]
                     EXCLUDED_LOCATIONS.add(loc_id)
 
+        def plateup_completion(state: CollectionState):
+            goal = self.multiworld.goal[self.player].value
+            if goal == 0:
+                count = self.multiworld.franchise_count[self.player].value
+                loc_name = f"Franchise {count} times"
+            else:
+                count = self.multiworld.day_count[self.player].value
+                loc_name = f"Complete Day {count}"
+            return state.can_reach(loc_name, "Location", self.player)
+
+        self.multiworld.completion_condition[self.player] = plateup_completion
         apply_rules(multiworld, player)
 
     def fill_slot_data(self):
