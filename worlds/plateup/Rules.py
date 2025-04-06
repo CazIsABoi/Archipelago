@@ -1,5 +1,4 @@
 import typing
-import random
 from BaseClasses import MultiWorld, Location
 from Options import Accessibility
 from .Locations import (
@@ -55,7 +54,7 @@ def filter_selected_dishes(multiworld: MultiWorld, player: int):
 
     dish_count = multiworld.dish[player].value
     all_dishes = list(dish_dictionary.values())
-    selected = random.sample(all_dishes, min(dish_count, len(all_dishes)))
+    selected = multiworld.random.sample(all_dishes, min(dish_count, len(all_dishes)))
     multiworld.selected_dishes[player] = selected
 
     valid_locs = []

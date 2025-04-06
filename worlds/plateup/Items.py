@@ -115,6 +115,13 @@ ITEMS = {
     "Speed Upgrade Chop": (13, ItemClassification.progression),
     "Speed Upgrade Clean": (14, ItemClassification.progression),
     #endregion
+
+    #region progression
+    "Day Lease": (15, ItemClassification.progression),
+
+
+
+    #endregion
     #region traps
     "EVERYTHING IS ON FIRE": (20000, ItemClassification.trap),
     "Super Slow": (20001, ItemClassification.trap),
