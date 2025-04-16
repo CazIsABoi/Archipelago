@@ -1,13 +1,12 @@
-import random
+# Regions.py
 import math
-from BaseClasses import Region, LocationProgressType
+from BaseClasses import Region, LocationProgressType  # <-- IMPORT LocationProgressType
 from .Locations import (
     PlateUpLocation,
     EXCLUDED_LOCATIONS,
     FRANCHISE_LOCATION_DICT,
     DAY_LOCATION_DICT,
-    DISH_LOCATIONS,
-    dish_dictionary
+    DISH_LOCATIONS
 )
 
 def create_plateup_regions(multiworld, player):
@@ -35,15 +34,16 @@ def create_plateup_regions(multiworld, player):
         for name, loc_id in FRANCHISE_LOCATION_DICT.items():
             if loc_id < max_franchise_id or name == f"Franchise {required_franchises} times":
                 loc = PlateUpLocation(player, name, loc_id, parent=progression_region)
+                # Mark location as excluded if it's in EXCLUDED_LOCATIONS
+                if loc_id in EXCLUDED_LOCATIONS:
+                    loc.progress_type = LocationProgressType.EXCLUDED
                 progression_region.locations.append(loc)
                 progression_locs.append(name)
             else:
                 plateup_world.excluded_locations.add(loc_id)
 
-
     elif user_goal == 1:
-        plateup_world = multiworld.worlds[player]
-
+        # Day goal
         # Exclude all franchise locations
         for loc_id in FRANCHISE_LOCATION_DICT.values():
             plateup_world.excluded_locations.add(loc_id)
@@ -51,23 +51,29 @@ def create_plateup_regions(multiworld, player):
         required_days = multiworld.day_count[player].value
         max_stars = math.ceil(required_days / 3)
 
-        # Only add "Complete Day" locations that are within the required days.
+        # Only add "Complete Day" locations that are within the required days
         for name, loc_id in DAY_LOCATION_DICT.items():
             if name.startswith("Complete Day "):
                 day = int(name.removeprefix("Complete Day ").strip())
                 if day <= required_days:
                     loc = PlateUpLocation(player, name, loc_id, parent=progression_region)
+                    # Mark location as excluded if it's in EXCLUDED_LOCATIONS
+                    if loc_id in EXCLUDED_LOCATIONS:
+                        loc.progress_type = LocationProgressType.EXCLUDED
                     progression_locs.append(name)
                     progression_region.locations.append(loc)
                 else:
                     plateup_world.excluded_locations.add(loc_id)
 
-        # Only add "Complete Star" locations that are within the allowed stars.
+        # Only add "Complete Star" locations that are within the allowed stars
         for name, loc_id in DAY_LOCATION_DICT.items():
             if name.startswith("Complete Star "):
                 star = int(name.removeprefix("Complete Star ").strip())
                 if star <= max_stars:
                     loc = PlateUpLocation(player, name, loc_id, parent=progression_region)
+                    # Mark location as excluded if it's in EXCLUDED_LOCATIONS
+                    if loc_id in EXCLUDED_LOCATIONS:
+                        loc.progress_type = LocationProgressType.EXCLUDED
                     progression_locs.append(name)
                     progression_region.locations.append(loc)
                 else:
