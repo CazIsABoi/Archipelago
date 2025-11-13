@@ -30,14 +30,26 @@ def add_rule(spot: Location | Entrance, rule, combine="and"):
 
 
 def restrict_locations_by_progression(world: "PlateUpWorld"):
-    dish_order = world.valid_dish_locations
+    # Chain each dish day's location to require the previous day's location.
+    # Additionally, for non-starting dishes, require the corresponding Unlock item to access Day 1.
+    dish_order = getattr(world, 'valid_dish_locations', [])
+    starting_dish = getattr(world, 'starting_dish', None)
     for i in range(len(dish_order) - 1):
         current_loc_name = dish_order[i]
         next_loc_name = dish_order[i + 1]
         if next_loc_name in world.location_name_to_id:
             try:
                 loc = world.get_location(next_loc_name)
-                loc.access_rule = lambda state, cur=current_loc_name: state.can_reach(cur, "Location", world.player)
+                # Ensure next location requires reaching the previous one
+                add_rule(loc, lambda state, cur=current_loc_name: state.can_reach(cur, "Location", world.player))
+
+                # If this next location is a Day 1 of a dish that isn't the starting dish,
+                # add requirement for the corresponding Unlock item.
+                if next_loc_name.endswith(" - Day 1"):
+                    dish_name = next_loc_name.rsplit(" - Day ", 1)[0]
+                    if starting_dish and dish_name != starting_dish:
+                        unlock_item = f"{dish_name} Unlock"
+                        add_rule(loc, lambda state, item=unlock_item: state.has(item, world.player))
             except KeyError:
                 pass
 

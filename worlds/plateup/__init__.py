@@ -64,6 +64,17 @@ class PlateUpWorld(World):
                 else:
                     run_idx = run_index_from_name(name)
                     if run_idx is not None and (run_idx + 1) <= required:
+                        # Exclude post-day-15 checks (Day 16-20) from the location table;
+                        # these are not part of franchise progression locations.
+                        # Keep textual 1-5 day labels and star labels.
+                        if "Complete Day " in name:
+                            try:
+                                day_str = name.split("Complete Day ", 1)[1].split(" ")[0].strip()
+                                # day_str should be a number for days >=6; if it isn't, keep it
+                                if day_str.isdigit() and int(day_str) > 15:
+                                    continue
+                            except Exception:
+                                pass
                         locs[name] = loc
             return locs
         else:
@@ -114,8 +125,20 @@ class PlateUpWorld(World):
     def create_items(self):
         self.set_selected_dishes()
         """Create the initial item pool based on the planned location table."""
-
-        total_locations = len(self.generate_location_table())
+        # Base planned locations from the table used by region creation
+        base_locations = len(self.generate_location_table())
+        # Account for dynamic dish locations that are added later in set_rules, so our
+        # item count matches final locations and we don't over-generate items.
+        extra_dish_locations = 0
+        if self.options.dish.value > 0:
+            if self.options.goal.value == Goal.option_franchise_x_times:
+                # For franchise goal, dish locations are not in the base table, but will be
+                # added dynamically (15 per selected dish). Use the configured count here.
+                extra_dish_locations = 15 * int(self.options.dish.value)
+            else:
+                # For day goal, dish locations are already included in the base table
+                extra_dish_locations = 0
+        total_locations = base_locations + extra_dish_locations
         item_pool = []
 
         # Always remove one dish to be the starting dish (if any)
@@ -155,15 +178,20 @@ class PlateUpWorld(World):
             total_days = 15 * self.options.franchise_count.value
         else:
             total_days = self.options.day_count.value
-        lease_count = math.ceil(total_days / 3)
+        # Number of Day Lease items required depends on configurable interval
+        interval = max(1, int(self.options.day_lease_interval.value))
+        lease_count = math.ceil(total_days / interval)
         item_pool.extend([
             self.create_item("Day Lease", classification=ItemClassification.progression)
             for _ in range(lease_count)
         ])
 
+        # Add trap items, but do not exceed planned total locations
+        remaining_capacity = max(0, total_locations - len(item_pool))
+        trap_to_add = min(3, remaining_capacity)
         item_pool.extend([
             self.create_item("Random Customer Card", classification=ItemClassification.trap)
-            for _ in range(3)
+            for _ in range(trap_to_add)
         ])
 
         while len(item_pool) < total_locations:
@@ -235,7 +263,8 @@ class PlateUpWorld(World):
             "day_count",
             "death_link",
             "death_link_behavior",
-            "appliance_speed_mode"
+            "appliance_speed_mode",
+            "day_lease_interval"
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
         if self.options.dish.value == 0:
