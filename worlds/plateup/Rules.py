@@ -126,3 +126,14 @@ def apply_rules(world: "PlateUpWorld"):
                     )
                 except KeyError:
                     pass
+
+    try:
+        lose_loc = world.get_location("Lose a Run")
+        if world.options.goal.value == 1:
+            # Day goal: require completion of Day 1
+            lose_loc.access_rule = lambda state: state.can_reach("Complete Day 1", "Location", world.player)
+        else:
+            # Franchise goal: require completion of the first franchise day
+            lose_loc.access_rule = lambda state: state.can_reach("Franchise - Complete First Day", "Location", world.player)
+    except KeyError:
+        pass

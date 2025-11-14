@@ -196,6 +196,32 @@ def create_plateup_regions(world: "PlateUpWorld"):
             progression_locs.append(name)
             included_names.add(name)
 
+        # Ensure the single global "Lose a Run" location exists and is gated by completing Day 1.
+        # Place it in the region reachable after Day 1 (i.e., Day 2 entrance), so players
+        # cannot cheese access before completing the first day.
+        try:
+            lose_loc_id = FRANCHISE_LOCATION_DICT.get("Lose a Run") or DAY_LOCATION_DICT.get("Lose a Run")
+            if lose_loc_id is not None:
+                # Attach from Run 1 Day 1 so it's gated by completing that day.
+                src_region = run_day_regions.get((0, 1))
+                if src_region is not None:
+                    lose_region = Region("Lose a Run", world.player, world.multiworld)
+                    world.multiworld.regions.append(lose_region)
+                    e = Entrance(world.player, "Day 1 -> Lose a Run", parent=src_region)
+                    src_region.exits.append(e)
+                    # Require completion of the first day (first run) to enter Lose a Run
+                    e.access_rule = lambda state: state.can_reach("Franchise - Complete First Day", "Location", world.player)
+                    try:
+                        world.multiworld.register_indirect_condition(src_region, e)
+                    except Exception:
+                        pass
+                    e.connect(lose_region)
+                    loc = PlateUpLocation(world.player, "Lose a Run", lose_loc_id, parent=lose_region)
+                    lose_region.locations.append(loc)
+                    progression_locs.append("Lose a Run")
+        except Exception:
+            pass
+
         # Exclude any franchise locations not included
         for name, loc_id in FRANCHISE_LOCATION_DICT.items():
             if name not in included_names:
@@ -298,6 +324,32 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 loc.progress_type = LocationProgressType.EXCLUDED
             star_region.locations.append(loc)
             progression_locs.append(loc_name)
+
+        # Ensure the single global "Lose a Run" location exists and is gated by completing Day 1.
+        # Place it as reachable after Day 1 so that the entrance requires completing Day 1 first.
+        try:
+            lose_loc_id = DAY_LOCATION_DICT.get("Lose a Run") or FRANCHISE_LOCATION_DICT.get("Lose a Run")
+            if lose_loc_id is not None:
+                # Only create if we have at least Day 1
+                if 1 in day_regions:
+                    src_region = day_regions.get(1)
+                    if src_region is not None:
+                        lose_region = Region("Lose a Run", world.player, world.multiworld)
+                        world.multiworld.regions.append(lose_region)
+                        e = Entrance(world.player, "Day 1 -> Lose a Run", parent=src_region)
+                        src_region.exits.append(e)
+                        # Require completion of Day 1 to enter Lose a Run
+                        e.access_rule = lambda state: state.can_reach("Complete Day 1", "Location", world.player)
+                        try:
+                            world.multiworld.register_indirect_condition(src_region, e)
+                        except Exception:
+                            pass
+                        e.connect(lose_region)
+                        loc = PlateUpLocation(world.player, "Lose a Run", lose_loc_id, parent=lose_region)
+                        lose_region.locations.append(loc)
+                        progression_locs.append("Lose a Run")
+        except Exception:
+            pass
 
     # Provide progression locations both as names (legacy) and as Location objects
     # The Archipelago balancer expects `world.progression_locations` to be a list of
