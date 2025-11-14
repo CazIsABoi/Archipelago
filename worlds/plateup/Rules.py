@@ -61,9 +61,9 @@ def filter_selected_dishes(world: "PlateUpWorld"):
         world.valid_dish_locations = []
         return
 
-    all_dishes = list(dish_dictionary.values())
-    selected = world.random.sample(all_dishes, min(dish_count, len(all_dishes)))
-    world.selected_dishes = selected
+    # Do NOT re-randomize here; use the selection established earlier
+    # in world.set_selected_dishes/create_items so item pool unlocks match.
+    selected = getattr(world, "selected_dishes", [])
 
     valid_locs = []
     for dish in selected:

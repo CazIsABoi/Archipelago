@@ -9,7 +9,8 @@ from .Locations import (
     PlateUpLocation,
     EXCLUDED_LOCATIONS,
     FRANCHISE_LOCATION_DICT,
-    DAY_LOCATION_DICT
+    DAY_LOCATION_DICT,
+    DISH_LOCATIONS,
 )
 
 if TYPE_CHECKING:
@@ -208,7 +209,8 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
         required_days = world.options.day_count.value
         interval = max(1, int(world.options.day_lease_interval.value))
-        max_stars = math.ceil(required_days / 3)
+        # Use floor here; only create stars that correspond to an existing day (star*3)
+        max_stars = required_days // 3
         # Speed upgrades gating: split required_days into ~5 chunks
         speed_interval = max(1, math.ceil(required_days / 5))
 
@@ -273,6 +275,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
             if loc_id is None:
                 continue
             target_day = star * 3
+            # Guard against any mismatch; skip if target day wasn't created
+            if target_day not in day_regions:
+                continue
             source_r = day_regions[target_day]
             star_region = Region(f"Star {star}", world.player, world.multiworld)
             world.multiworld.regions.append(star_region)
@@ -317,20 +322,40 @@ def create_plateup_regions(world: "PlateUpWorld"):
     # Also keep the legacy name list under a verbose attribute for compatibility
     world.progression_location_names = progression_locs
     # Emit an info-level summary so console runs will show progression location details
-    logging.info(f"[Player {world.multiworld.player_name[world.player]}] Final progression-locs count: {len(progression_locs)}")
-    logging.info(f"[Player {world.multiworld.player_name[world.player]}] Progression-locs sample: {progression_locs[:20]}")
+    # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Final progression-locs count: {len(progression_locs)}")
+    # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Progression-locs sample: {progression_locs[:20]}")
     # Log actual Location objects added to the progression region and their progress_type
     for loc in world.progression_location_objects:
         try:
             ptype = getattr(loc, 'progress_type', None)
         except Exception:
             ptype = None
-        logging.info(f"[Player {world.multiworld.player_name[world.player]}] Region loc: {loc.name} (id={loc.address}) progress_type={ptype} sphere={getattr(loc, 'sphere', None)}")
+        # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Region loc: {loc.name} (id={loc.address}) progress_type={ptype} sphere={getattr(loc, 'sphere', None)}")
     # Emit a grouped summary by the sphere value we assigned for easy verification
     spheres = {}
     for loc in world.progression_location_objects:
         s = getattr(loc, 'sphere', None)
         spheres.setdefault(s, []).append(loc.name)
     for s in sorted(spheres.keys()):
-        logging.info(f"[Player {world.multiworld.player_name[world.player]}] Assigned sphere {s}: {spheres[s]}")
-    logging.debug(f"[Player {world.multiworld.player_name[world.player]}] Final progression-locs: {progression_locs}")
+        # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Assigned sphere {s}: {spheres[s]}")
+        pass
+    # logging.debug(f"[Player {world.multiworld.player_name[world.player]}] Final progression-locs: {progression_locs}")
+
+    # Populate Dish Checks region with configured dish locations during region creation
+    try:
+        dish_count = world.options.dish.value
+        if dish_count > 0:
+            dishes = [
+                "Salad", "Steak", "Burger", "Coffee", "Pizza", "Dumplings", "Turkey",
+                "Pie", "Cakes", "Spaghetti", "Fish", "Tacos", "Hot Dogs", "Breakfast", "Stir Fry"
+            ][:dish_count]
+            for dish in dishes:
+                for d in range(1, 16):
+                    loc_name = f"{dish} - Day {d}"
+                    loc_id = DISH_LOCATIONS.get(loc_name)
+                    if loc_id is None:
+                        continue
+                    loc = PlateUpLocation(world.player, loc_name, loc_id, parent=dish_region)
+                    dish_region.locations.append(loc)
+    except Exception:
+        pass
