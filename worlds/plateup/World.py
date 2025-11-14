@@ -76,23 +76,10 @@ class PlateUpWorld(World):
                             except Exception:
                                 pass
                         locs[name] = loc
-            # Include configured dish locations as non-progression checks as well
-            if dish_count > 0:
-                selected = [
-                    "Salad", "Steak", "Burger", "Coffee", "Pizza", "Dumplings", "Turkey",
-                    "Pie", "Cakes", "Spaghetti", "Fish", "Tacos", "Hot Dogs", "Breakfast", "Stir Fry"
-                ][:dish_count]
-                for dish in selected:
-                    for day in range(1, 15 + 1):
-                        loc_name = f"{dish} - Day {day}"
-                        loc_id = DISH_LOCATIONS.get(loc_name)
-                        if loc_id:
-                            locs[loc_name] = loc_id
             return locs
         else:
             required_days = self.options.day_count.value
-            # Must match Regions star creation logic (floor)
-            max_stars = required_days // 3
+            max_stars = math.ceil(required_days / 3)
             locs = {}
             for name, loc in DAY_LOCATION_DICT.items():
                 if name.startswith("Complete Day "):
@@ -103,19 +90,9 @@ class PlateUpWorld(World):
                     star = int(name.removeprefix("Complete Star ").strip())
                     if star <= max_stars:
                         locs[name] = loc
-            # Only add dish locations if dish_count > 0; include only those for the
-            # dishes that will be selected by set_selected_dishes (first N for determinism).
+            # Only add dish locations if dish_count > 0
             if dish_count > 0:
-                selected = [
-                    "Salad", "Steak", "Burger", "Coffee", "Pizza", "Dumplings", "Turkey",
-                    "Pie", "Cakes", "Spaghetti", "Fish", "Tacos", "Hot Dogs", "Breakfast", "Stir Fry"
-                ][:dish_count]
-                for dish in selected:
-                    for day in range(1, 15 + 1):
-                        loc_name = f"{dish} - Day {day}"
-                        loc_id = DISH_LOCATIONS.get(loc_name)
-                        if loc_id:
-                            locs[loc_name] = loc_id
+                locs.update(DISH_LOCATIONS)
             return locs
 
     def validate_ids(self):
@@ -150,8 +127,18 @@ class PlateUpWorld(World):
         """Create the initial item pool based on the planned location table."""
         # Base planned locations from the table used by region creation
         base_locations = len(self.generate_location_table())
-        # All dish locations are included in the base location table now
-        total_locations = base_locations
+        # Account for dynamic dish locations that are added later in set_rules, so our
+        # item count matches final locations and we don't over-generate items.
+        extra_dish_locations = 0
+        if self.options.dish.value > 0:
+            if self.options.goal.value == Goal.option_franchise_x_times:
+                # For franchise goal, dish locations are not in the base table, but will be
+                # added dynamically (15 per selected dish). Use the configured count here.
+                extra_dish_locations = 15 * int(self.options.dish.value)
+            else:
+                # For day goal, dish locations are already included in the base table
+                extra_dish_locations = 0
+        total_locations = base_locations + extra_dish_locations
         item_pool = []
 
         # Always remove one dish to be the starting dish (if any)
@@ -160,6 +147,7 @@ class PlateUpWorld(World):
         if hasattr(self, "selected_dishes") and self.selected_dishes:
             self.starting_dish = self.selected_dishes[0]
             unlock_dishes = self.selected_dishes[1:]
+        self.selected_dishes = unlock_dishes  # <-- update selected_dishes to only those with unlocks
 
         # Add unlock items for the rest of the selected dishes
         for dish in unlock_dishes:
@@ -217,9 +205,21 @@ class PlateUpWorld(World):
     def set_rules(self):
         """Set progression rules and top-up the item pool based on final locations."""
 
-        # Only filter dishes if dish count > 0 (for rule wiring / ordering)
+        # Only filter dishes if dish count > 0
         if self.options.dish.value > 0:
             filter_selected_dishes(self)
+            from .Locations import DISH_LOCATIONS, PlateUpLocation
+            dish_region = next(
+                (r for r in self.multiworld.regions if r.name == "Dish Checks" and r.player == self.player),
+                None
+            )
+            if dish_region:
+                for loc_name in self.valid_dish_locations:
+                    if not any(loc.name == loc_name for loc in dish_region.locations):
+                        loc_id = DISH_LOCATIONS.get(loc_name)
+                        if loc_id:
+                            loc = PlateUpLocation(self.player, loc_name, loc_id, parent=dish_region)
+                            dish_region.locations.append(loc)
         else:
             # If dish count is 0, ensure these are empty
             self.selected_dishes = []
