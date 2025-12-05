@@ -4,6 +4,7 @@ from collections import Counter
 
 from BaseClasses import ItemClassification, CollectionState
 from worlds.AutoWorld import World
+from . import Web_World
 from .Items import ITEMS, PlateUpItem
 from .Locations import DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS
 from .Options import PlateUpOptions, Goal
@@ -16,6 +17,7 @@ from .Rules import (
 
 class PlateUpWorld(World):
     game = "plateup"
+    web = Web_World.PlateUpWebWorld()
     options_dataclass = PlateUpOptions
     options: PlateUpOptions
 
