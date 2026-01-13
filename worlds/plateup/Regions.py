@@ -29,6 +29,10 @@ def create_plateup_regions(world: "PlateUpWorld"):
     user_goal = world.options.goal.value
     progression_locs = []
 
+    def day_label(d: int) -> str:
+        names = {1: "First Day", 2: "Second Day", 3: "Third Day", 4: "Fourth Day", 5: "Fifth Day"}
+        return names.get(d, f"Day {d}")
+
     if user_goal == 0:
         # Franchise goal: Build per-run, per-day regions with chained entrances and lease requirements.
         # Exclude all day-goal locations
@@ -47,10 +51,6 @@ def create_plateup_regions(world: "PlateUpWorld"):
             if run == 1:
                 return " After Franchised"
             return f" After Franchised {run}"
-
-        def day_label(d: int) -> str:
-            names = {1: "First Day", 2: "Second Day", 3: "Third Day", 4: "Fourth Day", 5: "Fifth Day"}
-            return names.get(d, f"Day {d}")
 
         star_labels = {1: "First Star", 2: "Second Star", 3: "Third Star", 4: "Fourth Star", 5: "Fifth Star"}
 
@@ -81,7 +81,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
             for d in range(2, 16):
                 prev_r = run_day_regions[(run, d - 1)]
                 cur_r = run_day_regions[(run, d)]
-                e = Entrance(world.player, f"Franchise Run {run+1} - Day {d-1} -> Day {d}", parent=prev_r)
+                e = Entrance(world.player, f"Franchise Run {run+1} - Day {d-1} -> Franchise Run {run+1} - Day {d}", parent=prev_r)
                 prev_r.exits.append(e)
 
                 prev_label = day_label(d - 1)
@@ -408,6 +408,23 @@ def create_plateup_regions(world: "PlateUpWorld"):
                     if loc_id is None:
                         continue
                     loc = PlateUpLocation(world.player, loc_name, loc_id, parent=dish_region)
+
+                    # Gate dish day locations behind the corresponding day completion so the solver
+                    # cannot place early-critical items (like Day Lease) on late dish checks.
+                    if user_goal == 0:
+                        gate_label = day_label(d)
+                        gate_loc = f"Franchise - Complete {gate_label}"
+                        if gate_loc in FRANCHISE_LOCATION_DICT:
+                            def dish_gate_factory(gl=gate_loc):
+                                return lambda state: state.can_reach(gl, "Location", world.player)
+                            loc.access_rule = dish_gate_factory()
+                    else:
+                        gate_loc = f"Complete Day {d}"
+                        if gate_loc in DAY_LOCATION_DICT:
+                            def dish_gate_factory(gl=gate_loc):
+                                return lambda state: state.can_reach(gl, "Location", world.player)
+                            loc.access_rule = dish_gate_factory()
+                            
                     dish_region.locations.append(loc)
     except Exception:
         pass
