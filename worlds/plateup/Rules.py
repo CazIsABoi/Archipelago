@@ -30,21 +30,21 @@ def add_rule(spot: Location | Entrance, rule, combine="and"):
 
 
 def restrict_locations_by_progression(world: "PlateUpWorld"):
-    # Chain each dish day's location to require the previous day's location.
-    # Additionally, for non-starting dishes, require the corresponding Unlock item to access Day 1.
+    # Chain dish day locations to require the previous day.
+    # For non-starting dishes, Day 1 requires the corresponding Unlock item.
     dish_order = getattr(world, 'valid_dish_locations', [])
     starting_dish = getattr(world, 'starting_dish', None)
     for i in range(len(dish_order) - 1):
         current_loc_name = dish_order[i]
         next_loc_name = dish_order[i + 1]
-        if next_loc_name in world.location_name_to_id:
+        # Only set rules when both exist in this world's locations
+        if next_loc_name in world.location_name_to_id and current_loc_name in world.location_name_to_id:
             try:
                 loc = world.get_location(next_loc_name)
-                # Ensure next location requires reaching the previous one
+                # Next requires reaching the previous
                 add_rule(loc, lambda state, cur=current_loc_name: state.can_reach(cur, "Location", world.player))
 
-                # If this next location is a Day 1 of a dish that isn't the starting dish,
-                # add requirement for the corresponding Unlock item.
+                # If next is Day 1 of a non-starting dish, require Unlock
                 if next_loc_name.endswith(" - Day 1"):
                     dish_name = next_loc_name.rsplit(" - Day ", 1)[0]
                     if starting_dish and dish_name != starting_dish:
@@ -65,11 +65,13 @@ def filter_selected_dishes(world: "PlateUpWorld"):
     # in world.set_selected_dishes/create_items so item pool unlocks match.
     selected = getattr(world, "selected_dishes", [])
 
+    planned_table = getattr(world, "_location_name_to_id", {})
     valid_locs = []
     for dish in selected:
         for day in range(1, 15 + 1):
             loc_name = f"{dish} - Day {day}"
-            if loc_name in DISH_LOCATIONS:
+            # Only include if defined and present in the planned location table used by regions
+            if loc_name in DISH_LOCATIONS and loc_name in planned_table:
                 valid_locs.append(loc_name)
 
     world.valid_dish_locations = valid_locs
@@ -125,6 +127,72 @@ def apply_rules(world: "PlateUpWorld"):
                         lambda state, p=prev_name: state.can_reach(p, "Location", world.player)
                     )
                 except KeyError:
+                    pass
+
+        # Explicitly gate franchise day completion locations by Day Lease and Player Speed,
+        # mirroring the region entrance rules so spheres reflect lease requirements.
+        try:
+            required_franchises = int(world.options.franchise_count.value)
+        except Exception:
+            required_franchises = 1
+        # Lease cadence and speed-gating must match Regions.create_plateup_regions
+        interval = max(1, int(world.options.day_lease_interval.value))
+        # Compute speed interval across all franchise days
+        total_days = 15 * required_franchises if required_franchises > 0 else 15
+        speed_slots = max(1, int(world.options.player_speed_upgrade_count.value))
+        # Ceiling so last chunk can be shorter
+        import math as _math
+        speed_interval = max(1, _math.ceil(total_days / speed_slots))
+
+        def run_suffix(run: int) -> str:
+            if run == 0:
+                return ""
+            if run == 1:
+                return " After Franchised"
+            return f" After Franchised {run}"
+
+        def day_label(d: int) -> str:
+            mapping = {1: "First Day", 2: "Second Day", 3: "Third Day", 4: "Fourth Day", 5: "Fifth Day"}
+            return mapping.get(d, f"Day {d}")
+
+        for run in range(required_franchises):
+            suff = run_suffix(run)
+            for d in range(1, 16):
+                cur_name = f"Franchise - Complete {day_label(d)}{suff}"
+                # Leases required based on global day number (run*15 + d)
+                global_day = run * 15 + d
+                leases_required = (global_day - 1) // interval
+                speed_required = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
+
+                # Previous completion within the same run or prior run's Day 15 when d == 1 and run > 0
+                if d == 1:
+                    if run == 0:
+                        prev_name = None
+                    else:
+                        prev_name = f"Franchise - Complete Day 15{run_suffix(run - 1)}"
+                else:
+                    prev_name = f"Franchise - Complete {day_label(d-1)}{suff}"
+
+                try:
+                    loc_cur = world.get_location(cur_name)
+                    # Build rule requiring leases/speed (and previous completion if applicable)
+                    if prev_name is None:
+                        loc_cur.access_rule = (
+                            lambda state, req=leases_required, spd=speed_required: (
+                                state.has("Day Lease", world.player, req)
+                                and state.has("Speed Upgrade Player", world.player, spd)
+                            )
+                        )
+                    else:
+                        loc_cur.access_rule = (
+                            lambda state, p=prev_name, req=leases_required, spd=speed_required: (
+                                state.can_reach(p, "Location", world.player)
+                                and state.has("Day Lease", world.player, req)
+                                and state.has("Speed Upgrade Player", world.player, spd)
+                            )
+                        )
+                except KeyError:
+                    # This day's franchise completion might not be present (e.g., beyond required runs)
                     pass
 
     try:
