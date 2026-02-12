@@ -87,6 +87,11 @@ class StartingMoneyCap(Range):
     default = 20
 
 
+class TrapCards(Toggle):
+    """Enable trap cards that add Random Customer Card items to the pool."""
+    display_name = "Enable Trap Cards"
+    default = 1
+
 
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
@@ -102,4 +107,5 @@ class PlateUpOptions(PerGameCommonOptions):
     player_speed_upgrade_count: PlayerSpeedUpgradeCount
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
     starting_money_cap: StartingMoneyCap
+    trap_cards: TrapCards
     # removed item count; items are generated automatically from total days
