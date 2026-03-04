@@ -2,14 +2,23 @@ import logging
 import math
 from collections import Counter
 
-from BaseClasses import ItemClassification, CollectionState
+from BaseClasses import ItemClassification, CollectionState, LocationProgressType
 from worlds.AutoWorld import World
 from . import Web_World
 from .Items import ITEMS, PlateUpItem
-from .Locations import DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS
-from .Options import PlateUpOptions, Goal
+from .Locations import (
+    DISH_LOCATIONS,
+    FRANCHISE_LOCATION_DICT,
+    DAY_LOCATION_DICT,
+    EXCLUDED_LOCATIONS,
+    SETTING_LOCATIONS,
+    BASE_SETTING_NAME,
+    OPTIONAL_SETTING_DISPLAY,
+)
+from .Options import PlateUpOptions, Goal, SettingCheckMode
 from .Rules import (
     filter_selected_dishes,
+    filter_selected_settings,
     apply_rules,
     restrict_locations_by_progression
 )
@@ -23,7 +32,12 @@ class PlateUpWorld(World):
 
     # Pre-calculate mappings for items and locations.
     item_name_to_id = {name: data[0] for name, data in ITEMS.items()}
-    location_name_to_id = {**FRANCHISE_LOCATION_DICT, **DAY_LOCATION_DICT, **DISH_LOCATIONS}
+    location_name_to_id = {
+        **FRANCHISE_LOCATION_DICT,
+        **DAY_LOCATION_DICT,
+        **DISH_LOCATIONS,
+        **SETTING_LOCATIONS,
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -32,9 +46,12 @@ class PlateUpWorld(World):
         self.selected_dishes = []
         self.starting_dish = None
         self.valid_dish_locations = []
+        self.selected_settings = []
+        self.valid_setting_locations = []
 
     def generate_location_table(self):
         """Plan locations based on goal/options and selected dishes."""
+        self.set_selected_settings()
         goal = self.options.goal.value
         dish_count = self.options.dish.value
         if goal == 0:
@@ -90,7 +107,6 @@ class PlateUpWorld(World):
                         loc_id = DISH_LOCATIONS.get(loc_name)
                         if loc_id:
                             locs[loc_name] = loc_id
-            return locs
         else:
             required_days = self.options.day_count.value
             # Must match Regions star creation logic (floor)
@@ -115,7 +131,16 @@ class PlateUpWorld(World):
                         loc_id = DISH_LOCATIONS.get(loc_name)
                         if loc_id:
                             locs[loc_name] = loc_id
-            return locs
+        if self.options.setting_checks.value:
+            if not self.selected_settings:
+                self.set_selected_settings()
+            for setting in self.selected_settings:
+                for day in range(1, 16):
+                    loc_name = f"{setting} - Day {day}"
+                    loc_id = SETTING_LOCATIONS.get(loc_name)
+                    if loc_id:
+                        locs[loc_name] = loc_id
+        return locs
 
     def validate_ids(self):
         """Ensure item and location IDs are unique."""
@@ -134,6 +159,7 @@ class PlateUpWorld(World):
         from .Regions import create_plateup_regions
         # Ensure selected dishes are initialized
         self.set_selected_dishes()
+        self.set_selected_settings()
         self._location_name_to_id = self.generate_location_table()
         self.validate_ids()
         create_plateup_regions(self)
@@ -161,7 +187,8 @@ class PlateUpWorld(World):
         self.set_selected_dishes()
         """Create the item pool for all planned locations."""
         # Base planned locations used by region creation
-        base_locations = len(self.generate_location_table())
+        planned_locations = self.generate_location_table()
+        base_locations = len(planned_locations)
         # Dish locations are included in the base table
         total_locations = base_locations
         item_pool = []
@@ -220,7 +247,7 @@ class PlateUpWorld(World):
         logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Auto Money Cap items by cadence: total_days={total_days}, placing={money_cap_items}")
         if money_cap_items > 0:
             item_pool.extend([
-                self.create_item("Money Cap Increase", classification=ItemClassification.filler)
+                self.create_item("Money Cap Increase", classification=ItemClassification.progression)
                 for _ in range(money_cap_items)
             ])
 
@@ -242,13 +269,49 @@ class PlateUpWorld(World):
                 for _ in range(trap_to_add)
             ])
 
-        # Top up remaining capacity with a mix of normal and filler appliances
+        # Top up remaining capacity with a mix of normal and filler appliances,
+        # ensuring there are enough filler-classified items to cover excluded locations.
         remaining = max(0, total_locations - len(item_pool))
+        try:
+            excluded_needed = sum(
+                1
+                for loc in self.multiworld.get_locations()
+                if loc.player == self.player and loc.progress_type == LocationProgressType.EXCLUDED
+            )
+        except Exception:
+            excluded_needed = sum(1 for loc_id in planned_locations.values() if loc_id in EXCLUDED_LOCATIONS)
+
+        def count_filler(items: list[PlateUpItem]) -> int:
+            return sum(1 for item in items if item.classification == ItemClassification.filler)
+
+        filler_needed = max(0, excluded_needed - count_filler(item_pool))
+        filler_from_remaining = min(filler_needed, remaining)
+        if filler_from_remaining:
+            item_pool.extend([
+                self.create_item("Random Filler Appliance", classification=ItemClassification.filler)
+                for _ in range(filler_from_remaining)
+            ])
+            remaining -= filler_from_remaining
+            filler_needed -= filler_from_remaining
+
         for i in range(remaining):
             if i % 2 == 0:
                 item_pool.append(self.create_item("Random Appliance", classification=ItemClassification.useful))
             else:
                 item_pool.append(self.create_item("Random Filler Appliance", classification=ItemClassification.filler))
+
+        if filler_needed > 0:
+            for idx, item in enumerate(item_pool):
+                if filler_needed <= 0:
+                    break
+                if item.name == "Random Appliance":
+                    item_pool[idx] = self.create_item("Random Filler Appliance", classification=ItemClassification.filler)
+                    filler_needed -= 1
+            if filler_needed > 0:
+                logging.warning(
+                    f"[Player {self.multiworld.player_name[self.player]}] Unable to satisfy filler quota. "
+                    f"Missing {filler_needed} filler items for excluded locations."
+                )
 
         logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Total item pool count: {len(item_pool)}")
         logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Total locations: {total_locations}")
@@ -257,6 +320,8 @@ class PlateUpWorld(World):
     def set_rules(self):
         """Set progression rules and top-up the item pool based on final locations."""
 
+        self.set_selected_settings()
+
         # Filter dishes only when enabled
         if self.options.dish.value > 0:
             filter_selected_dishes(self)
@@ -264,14 +329,9 @@ class PlateUpWorld(World):
             self.selected_dishes = []
             self.valid_dish_locations = []
 
-        restrict_locations_by_progression(self)
+        filter_selected_settings(self)
 
-        if self.options.goal.value == Goal.option_franchise_x_times:
-            required = self.options.franchise_count.value
-            for i in range(required + 1, 51):  # expanded upper bound
-                name = f"Franchise {i} times"
-                if name in FRANCHISE_LOCATION_DICT:
-                    EXCLUDED_LOCATIONS.add(FRANCHISE_LOCATION_DICT[name])
+        restrict_locations_by_progression(self)
 
         def plateup_completion(state: CollectionState):
             if self.options.goal.value == Goal.option_franchise_x_times:
@@ -307,7 +367,10 @@ class PlateUpWorld(World):
             "appliance_speed_mode",
             "day_lease_interval",
             "starting_money_cap",
-            "trap_cards"
+            "trap_cards",
+            "setting_checks",
+            "setting_check_mode",
+            "setting_extra_checks",
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
         if self.options.dish.value == 0:
@@ -325,6 +388,20 @@ class PlateUpWorld(World):
                     if name in planned:
                         count += 1
             options_dict["dish_locations_present"] = count
+        if self.options.setting_checks.value:
+            self.set_selected_settings()
+            options_dict["selected_settings"] = getattr(self, "selected_settings", [])
+            planned = getattr(self, "_location_name_to_id", {})
+            count = 0
+            for setting in options_dict["selected_settings"]:
+                for day in range(1, 16):
+                    name = f"{setting} - Day {day}"
+                    if name in planned:
+                        count += 1
+            options_dict["setting_locations_present"] = count
+        else:
+            options_dict["selected_settings"] = []
+            options_dict["setting_locations_present"] = 0
         # Diagnostics
         options_dict["dish_unlocks"] = 0 if self.options.dish.value == 0 else 1
         return options_dict
@@ -333,6 +410,30 @@ class PlateUpWorld(World):
         """Randomly select a filler item from the available candidates."""
         # Use the explicit filler placeholder to avoid ambiguity.
         return "Random Filler Appliance"
+
+    def set_selected_settings(self):
+        if not getattr(self.options, "setting_checks", None) or not self.options.setting_checks.value:
+            self.selected_settings = []
+            self.valid_setting_locations = []
+            return
+
+        mode = getattr(self.options, "setting_check_mode", None)
+        mode_value = getattr(mode, "value", SettingCheckMode.option_base_only)
+        include_base = mode_value != SettingCheckMode.option_extras_only
+        include_extras = mode_value != SettingCheckMode.option_base_only
+
+        selected: list[str] = []
+        if include_base:
+            selected.append(BASE_SETTING_NAME)
+
+        if include_extras:
+            extra_settings = list(getattr(self.options.setting_extra_checks, "value", []))
+            for slug in extra_settings:
+                display = OPTIONAL_SETTING_DISPLAY.get(slug, slug)
+                if display not in selected:
+                    selected.append(display)
+
+        self.selected_settings = selected
 
     def set_selected_dishes(self):
         dish_count = self.options.dish.value

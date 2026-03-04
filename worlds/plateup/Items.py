@@ -13,7 +13,7 @@ class PlateUpItem(Item):
 
 ITEMS = {
     #region Appliances
-    "Random Appliance": (1001, ItemClassification.useful),
+    "Random Appliance": (1001, ItemClassification.filler),
     "Random Filler Appliance": (1002, ItemClassification.filler),
     #endregion
     #region Speed
@@ -26,7 +26,7 @@ ITEMS = {
 
     #region progression
     "Day Lease": (15, ItemClassification.progression),
-    "Money Cap Increase": (16, ItemClassification.useful),
+    "Money Cap Increase": (16, ItemClassification.progression),
 
 
 

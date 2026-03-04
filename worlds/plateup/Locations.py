@@ -118,3 +118,32 @@ for dish_id, dish_name in dish_dictionary.items():
         loc_name = f"{dish_name} - Day {day}"
         loc_id = (dish_id * 10000) + day
         DISH_LOCATIONS[loc_name] = loc_id
+
+
+BASE_SETTING_NAME = "Base Setting"
+OPTIONAL_SETTING_DISPLAY = {
+    "autumn": "Autumn",
+    "banquet": "Banquet",
+    "turbo": "Turbo",
+    "witch": "Witch Hut",
+}
+OPTIONAL_SETTING_NAMES: tuple[str, ...] = tuple(OPTIONAL_SETTING_DISPLAY.keys())
+
+
+SETTING_LOCATIONS: Dict[str, int] = {}
+SETTING_LOCATION_BASE_ID = 130000
+
+
+def _add_setting_block(display_name: str, index: int) -> None:
+    base_offset = SETTING_LOCATION_BASE_ID + (index * 100)
+    for day in range(1, 16):
+        loc_name = f"{display_name} - Day {day}"
+        loc_id = base_offset + day
+        SETTING_LOCATIONS[loc_name] = loc_id
+
+
+_add_setting_block(BASE_SETTING_NAME, 0)
+
+for idx, slug in enumerate(OPTIONAL_SETTING_NAMES, start=1):
+    display = OPTIONAL_SETTING_DISPLAY[slug]
+    _add_setting_block(display, idx)

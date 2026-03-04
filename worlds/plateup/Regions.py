@@ -4,13 +4,14 @@ import math
 import re
 from typing import TYPE_CHECKING
 
-from BaseClasses import Region, LocationProgressType, Entrance 
+from BaseClasses import Region, LocationProgressType, Entrance, ItemClassification
 from .Locations import (
     PlateUpLocation,
     EXCLUDED_LOCATIONS,
     FRANCHISE_LOCATION_DICT,
     DAY_LOCATION_DICT,
     DISH_LOCATIONS,
+    SETTING_LOCATIONS,
 )
 
 if TYPE_CHECKING:
@@ -21,19 +22,18 @@ def create_plateup_regions(world: "PlateUpWorld"):
     menu_region = Region("Menu", world.player, world.multiworld)
     progression_region = Region("Progression", world.player, world.multiworld)
     dish_region = Region("Dish Checks", world.player, world.multiworld)
+    setting_region = Region("Setting Checks", world.player, world.multiworld)
 
-    world.multiworld.regions.extend([menu_region, progression_region, dish_region])
+    world.multiworld.regions.extend([menu_region, progression_region, dish_region, setting_region])
     menu_region.connect(progression_region)
     progression_region.connect(dish_region)
+    menu_region.connect(setting_region)
 
     user_goal = world.options.goal.value
     progression_locs = []
 
     if user_goal == 0:
         # Franchise goal: Build per-run, per-day regions with chained entrances and lease requirements.
-        # Exclude all day-goal locations
-        for loc_id in DAY_LOCATION_DICT.values():
-            EXCLUDED_LOCATIONS.add(loc_id)
 
         required_franchises = world.options.franchise_count.value
         interval = max(1, int(world.options.day_lease_interval.value))
@@ -414,5 +414,21 @@ def create_plateup_regions(world: "PlateUpWorld"):
                         continue
                     loc = PlateUpLocation(world.player, loc_name, loc_id, parent=dish_region)
                     dish_region.locations.append(loc)
+    except Exception:
+        pass
+
+    try:
+        if world.options.setting_checks.value:
+            world.set_selected_settings()
+            for setting in getattr(world, "selected_settings", []):
+                for d in range(1, 16):
+                    loc_name = f"{setting} - Day {d}"
+                    loc_id = SETTING_LOCATIONS.get(loc_name)
+                    if loc_id is None:
+                        continue
+                    loc = PlateUpLocation(world.player, loc_name, loc_id, parent=setting_region)
+                    # Keep setting checks as optional/filler by disallowing progression items.
+                    loc.item_rule = lambda item: item.classification != ItemClassification.progression
+                    setting_region.locations.append(loc)
     except Exception:
         pass

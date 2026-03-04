@@ -9,6 +9,7 @@ sys.setrecursionlimit(5000)
 from BaseClasses import Location, Entrance
 from .Locations import (
     DISH_LOCATIONS,
+    SETTING_LOCATIONS,
     dish_dictionary
 )
 
@@ -94,6 +95,29 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
             except KeyError:
                 pass
 
+    setting_order = getattr(world, 'valid_setting_locations', [])
+    for i in range(len(setting_order) - 1):
+        current_loc_name = setting_order[i]
+        next_loc_name = setting_order[i + 1]
+        if next_loc_name in world.location_name_to_id and current_loc_name in world.location_name_to_id:
+            try:
+                loc = world.get_location(next_loc_name)
+                add_rule(loc, lambda state, cur=current_loc_name: state.can_reach(cur, "Location", world.player))
+
+                day_number = _extract_dish_day_number(next_loc_name)
+                if day_number:
+                    leases_required = max(0, (day_number - 1) // interval)
+                    speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
+                    add_rule(
+                        loc,
+                        lambda state, req=leases_required, spd=speed_required: (
+                            state.has("Day Lease", world.player, req)
+                            and state.has("Speed Upgrade Player", world.player, spd)
+                        )
+                    )
+            except KeyError:
+                pass
+
 
 def filter_selected_dishes(world: "PlateUpWorld"):
     dish_count = world.options.dish.value
@@ -116,6 +140,24 @@ def filter_selected_dishes(world: "PlateUpWorld"):
                 valid_locs.append(loc_name)
 
     world.valid_dish_locations = valid_locs
+
+
+def filter_selected_settings(world: "PlateUpWorld"):
+    if not getattr(world.options, "setting_checks", None) or not world.options.setting_checks.value:
+        world.selected_settings = []
+        world.valid_setting_locations = []
+        return
+
+    selected = getattr(world, "selected_settings", [])
+    planned_table = getattr(world, "_location_name_to_id", {})
+    valid_locs: list[str] = []
+    for setting in selected:
+        for day in range(1, 16):
+            loc_name = f"{setting} - Day {day}"
+            if loc_name in SETTING_LOCATIONS and loc_name in planned_table:
+                valid_locs.append(loc_name)
+
+    world.valid_setting_locations = valid_locs
 
 def apply_rules(world: "PlateUpWorld"):
     goal_type = world.options.goal.value
