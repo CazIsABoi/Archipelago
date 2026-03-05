@@ -228,13 +228,17 @@ def create_plateup_regions(world: "PlateUpWorld"):
             if name not in included_names:
                 world.excluded_locations.add(loc_id)
 
-    elif user_goal == 1:
-        # Day goal: Build one region per day with chained entrances and lease requirements.
+    elif user_goal in (1, 2):
+        # Day goal (complete_x_days or reach_day_x_with_dishes):
+        # Build one region per day with chained entrances and lease requirements.
         # Exclude all franchise locations
         for loc_id in FRANCHISE_LOCATION_DICT.values():
             world.excluded_locations.add(loc_id)
 
-        required_days = world.options.day_count.value
+        if user_goal == 2:
+            required_days = world.options.day_target.value
+        else:
+            required_days = world.options.day_count.value
         interval = max(1, int(world.options.day_lease_interval.value))
         # Use floor here; only create stars that correspond to an existing day (star*3)
         max_stars = required_days // 3
@@ -406,8 +410,10 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 except Exception:
                     pass
                 dishes = getattr(world, "selected_dishes", [])
+            goal_val = getattr(world.options.goal, 'value', 0)
+            dish_day_max = world.options.day_target.value if goal_val == 2 else 15
             for dish in dishes:
-                for d in range(1, 16):
+                for d in range(1, dish_day_max + 1):
                     loc_name = f"{dish} - Day {d}"
                     loc_id = DISH_LOCATIONS.get(loc_name)
                     if loc_id is None:

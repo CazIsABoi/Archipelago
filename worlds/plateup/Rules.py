@@ -48,14 +48,18 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
 
     interval = max(1, int(world.options.day_lease_interval.value))
     try:
-        required_days = max(1, int(world.options.day_count.value))
+        goal_val = world.options.goal.value
+        if goal_val == 2:
+            required_days = max(1, int(world.options.day_target.value))
+        else:
+            required_days = max(1, int(world.options.day_count.value))
     except Exception:
         required_days = 1
     try:
         required_franchises = max(1, int(world.options.franchise_count.value))
     except Exception:
         required_franchises = 1
-    total_progress_days = required_days if world.options.goal.value == 1 else 15 * required_franchises
+    total_progress_days = required_days if world.options.goal.value in (1, 2) else 15 * required_franchises
     total_progress_days = max(1, total_progress_days)
     try:
         speed_upgrade_count = max(0, int(world.options.player_speed_upgrade_count.value))
@@ -131,9 +135,11 @@ def filter_selected_dishes(world: "PlateUpWorld"):
     selected = getattr(world, "selected_dishes", [])
 
     planned_table = getattr(world, "_location_name_to_id", {})
+    goal_val = getattr(world.options.goal, 'value', 0)
+    dish_day_max = world.options.day_target.value if goal_val == 2 else 15
     valid_locs = []
     for dish in selected:
-        for day in range(1, 15 + 1):
+        for day in range(1, dish_day_max + 1):
             loc_name = f"{dish} - Day {day}"
             # Only include if defined and present in the planned location table used by regions
             if loc_name in DISH_LOCATIONS and loc_name in planned_table:
@@ -162,9 +168,15 @@ def filter_selected_settings(world: "PlateUpWorld"):
 def apply_rules(world: "PlateUpWorld"):
     goal_type = world.options.goal.value
 
-    if goal_type == 1:
-        # Chain day completions
-        for i in range(2, 1001):  
+    if goal_type in (1, 2):
+        # Chain day completions for day-based goals
+        if goal_type == 2:
+            max_day = world.options.day_target.value
+            max_stars = max_day // 3
+        else:
+            max_day = world.options.day_count.value
+            max_stars = max_day // 3
+        for i in range(2, max_day + 1):
             current_day = f"Complete Day {i}"
             prev_day = f"Complete Day {i-1}"
             try:
@@ -175,7 +187,6 @@ def apply_rules(world: "PlateUpWorld"):
             except KeyError:
                 pass
         # Chain star completions (each star requires previous star)
-        max_stars = (world.options.day_count.value + 2) // 3  # ceil(day_count/3)
         for i in range(2, max_stars + 1):
             current_star = f"Complete Star {i}"
             prev_star = f"Complete Star {i-1}"
@@ -280,8 +291,8 @@ def apply_rules(world: "PlateUpWorld"):
 
     try:
         lose_loc = world.get_location("Lose a Run")
-        if world.options.goal.value == 1:
-            # Day goal: require completion of Day 1
+        if world.options.goal.value in (1, 2):
+            # Day-based goal: require completion of Day 1
             lose_loc.access_rule = lambda state: state.can_reach("Complete Day 1", "Location", world.player)
         else:
             # Franchise goal: require completion of the first franchise day

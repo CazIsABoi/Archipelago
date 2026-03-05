@@ -114,7 +114,7 @@ dish_dictionary = {
 
 DISH_LOCATIONS: Dict[str, int] = {}
 for dish_id, dish_name in dish_dictionary.items():
-    for day in range(1, 16):
+    for day in range(1, 101):  # up to 100 to support day_target max
         loc_name = f"{dish_name} - Day {day}"
         loc_id = (dish_id * 10000) + day
         DISH_LOCATIONS[loc_name] = loc_id

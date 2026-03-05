@@ -5,7 +5,7 @@ from collections import Counter
 from BaseClasses import ItemClassification, CollectionState, LocationProgressType
 from worlds.AutoWorld import World
 from . import Web_World
-from .Items import ITEMS, PlateUpItem
+from .Items import ITEMS, PlateUpItem, appliance_unlock_dictionary, APPLIANCE_PROGRESSION
 from .Locations import (
     DISH_LOCATIONS,
     FRANCHISE_LOCATION_DICT,
@@ -48,6 +48,23 @@ class PlateUpWorld(World):
         self.valid_dish_locations = []
         self.selected_settings = []
         self.valid_setting_locations = []
+
+    def generate_early(self):
+        """Validate option combinations before generation begins."""
+        if self.options.goal.value == Goal.option_reach_day_x_with_dishes:
+            dish_count = self.options.dish.value
+            dish_goal = self.options.dish_goal_count.value
+            if dish_count == 0:
+                raise Exception(
+                    f"[{self.multiworld.player_name[self.player]}] "
+                    "'dish' must be at least 1 when using goal 'reach_day_x_with_dishes'."
+                )
+            if dish_goal > dish_count:
+                raise Exception(
+                    f"[{self.multiworld.player_name[self.player]}] "
+                    f"'dish_goal_count' ({dish_goal}) cannot exceed 'dish' ({dish_count}). "
+                    "Lower dish_goal_count or raise the dish count."
+                )
 
     def generate_location_table(self):
         """Plan locations based on goal/options and selected dishes."""
@@ -107,7 +124,7 @@ class PlateUpWorld(World):
                         loc_id = DISH_LOCATIONS.get(loc_name)
                         if loc_id:
                             locs[loc_name] = loc_id
-        else:
+        elif goal == 1:
             required_days = self.options.day_count.value
             # Must match Regions star creation logic (floor)
             max_stars = required_days // 3
@@ -127,6 +144,30 @@ class PlateUpWorld(World):
                     self.set_selected_dishes()
                 for dish in self.selected_dishes:
                     for day in range(1, 15 + 1):
+                        loc_name = f"{dish} - Day {day}"
+                        loc_id = DISH_LOCATIONS.get(loc_name)
+                        if loc_id:
+                            locs[loc_name] = loc_id
+        else:  # goal == 2: reach Day X with Z dishes
+            required_days = self.options.day_target.value
+            max_stars = required_days // 3
+            locs = {}
+            for name, loc in DAY_LOCATION_DICT.items():
+                if name.startswith("Complete Day "):
+                    day = int(name.removeprefix("Complete Day ").strip())
+                    if day <= required_days:
+                        locs[name] = loc
+                elif name.startswith("Complete Star "):
+                    star = int(name.removeprefix("Complete Star ").strip())
+                    if star <= max_stars:
+                        locs[name] = loc
+            # Dish checks go up to day_target (not capped at 15) so there is
+            # content to check off on every run until the goal day is reached.
+            if dish_count > 0:
+                if not self.selected_dishes or len(self.selected_dishes) != dish_count:
+                    self.set_selected_dishes()
+                for dish in self.selected_dishes:
+                    for day in range(1, required_days + 1):
                         loc_name = f"{dish} - Day {day}"
                         loc_id = DISH_LOCATIONS.get(loc_name)
                         if loc_id:
@@ -239,6 +280,8 @@ class PlateUpWorld(World):
         # Determine total days to drive item counts
         if self.options.goal.value == Goal.option_franchise_x_times:
             total_days = 15 * int(self.options.franchise_count.value)
+        elif self.options.goal.value == Goal.option_reach_day_x_with_dishes:
+            total_days = int(self.options.day_target.value)
         else:
             total_days = int(self.options.day_count.value)
 
@@ -257,6 +300,21 @@ class PlateUpWorld(World):
         item_pool.extend([
             self.create_item("Day Lease", classification=ItemClassification.progression)
             for _ in range(lease_count)
+        ])
+
+        # Add Remove Card items if starting cards are enabled
+        if self.options.starting_cards.value != 0:
+            remove_card_count = int(self.options.starting_cards_amount.value)
+            item_pool.extend([
+                self.create_item("Remove Card", classification=ItemClassification.progression)
+                for _ in range(remove_card_count)
+            ])
+
+        # Add a small number of Shop Size Increase items (1 per 20 days, min 1)
+        shop_size_count = max(1, total_days // 10)
+        item_pool.extend([
+            self.create_item("Shop Size Increase", classification=ItemClassification.useful)
+            for _ in range(shop_size_count)
         ])
 
         if self.options.trap_cards.value:
@@ -294,11 +352,26 @@ class PlateUpWorld(World):
             remaining -= filler_from_remaining
             filler_needed -= filler_from_remaining
 
+        # Fill remaining slots with specific appliance unlocks first, then generic random ones
+        unlock_queue = [
+            f"Unlock {name}"
+            for name in appliance_unlock_dictionary.values()
+            if f"Unlock {name}" in self.item_name_to_id
+        ] if self.options.appliance_unlocks.value else []
+        filler_queue = ["5 Coins", "Random Filler Appliance", "10 Coins", "Random Filler Appliance", "20 Coins", "Random Filler Appliance"]
+        unlock_index = 0
         for i in range(remaining):
             if i % 2 == 0:
-                item_pool.append(self.create_item("Random Appliance", classification=ItemClassification.useful))
+                if unlock_index < len(unlock_queue):
+                    unlock_name = unlock_queue[unlock_index]
+                    unlock_classification = ITEMS[unlock_name][1]
+                    item_pool.append(self.create_item(unlock_name, classification=unlock_classification))
+                    unlock_index += 1
+                else:
+                    item_pool.append(self.create_item("Random Appliance", classification=ItemClassification.useful))
             else:
-                item_pool.append(self.create_item("Random Filler Appliance", classification=ItemClassification.filler))
+                coin_name = filler_queue[(i // 2) % len(filler_queue)]
+                item_pool.append(self.create_item(coin_name, classification=ItemClassification.filler))
 
         if filler_needed > 0:
             for idx, item in enumerate(item_pool):
@@ -333,14 +406,36 @@ class PlateUpWorld(World):
 
         restrict_locations_by_progression(self)
 
-        def plateup_completion(state: CollectionState):
-            if self.options.goal.value == Goal.option_franchise_x_times:
+        if self.options.goal.value == Goal.option_franchise_x_times:
+            def plateup_completion(state: CollectionState):
                 count = self.options.franchise_count.value
                 loc_name = f"Franchise {count} times"
+                return state.can_reach(loc_name, "Location", self.player)
+        elif self.options.goal.value == Goal.option_reach_day_x_with_dishes:
+            target_day = self.options.day_target.value
+            dish_count_opt = self.options.dish.value
+            dish_goal = self.options.dish_goal_count.value
+            day_loc = f"Complete Day {target_day}"
+            if dish_goal <= 1 or dish_count_opt == 0:
+                # Just need to reach the target day
+                def plateup_completion(state: CollectionState, dl=day_loc):
+                    return state.can_reach(dl, "Location", self.player)
             else:
+                # Need to reach target day AND have dish_goal dishes active
+                # (1 starting dish free; need dish_goal-1 unlocks from the item pool)
+                needed_unlocks = dish_goal - 1
+                all_unlock_names = [f"{dish} Unlock" for dish in getattr(self, "selected_dishes", [])[1:]]
+                unlock_names = [n for n in all_unlock_names if n in self.item_name_to_id]
+                def plateup_completion(state: CollectionState, dl=day_loc, un=unlock_names, nu=needed_unlocks):
+                    return (
+                        state.can_reach(dl, "Location", self.player)
+                        and state.has_from_list(un, self.player, nu)
+                    )
+        else:  # complete_x_days
+            def plateup_completion(state: CollectionState):
                 count = self.options.day_count.value
                 loc_name = f"Complete Day {count}"
-            return state.can_reach(loc_name, "Location", self.player)
+                return state.can_reach(loc_name, "Location", self.player)
 
         self.multiworld.completion_condition[self.player] = plateup_completion
         apply_rules(self)
@@ -362,15 +457,20 @@ class PlateUpWorld(World):
             "goal",
             "franchise_count",
             "day_count",
+            "day_target",
+            "dish_goal_count",
             "death_link",
             "death_link_behavior",
             "appliance_speed_mode",
             "day_lease_interval",
             "starting_money_cap",
+            "appliance_unlocks",
             "trap_cards",
             "setting_checks",
             "setting_check_mode",
             "setting_extra_checks",
+            "starting_cards",
+            "starting_cards_amount",
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
         if self.options.dish.value == 0:
@@ -435,6 +535,9 @@ class PlateUpWorld(World):
 
         self.selected_settings = selected
 
+    # Dishes weighted toward easier starts (3× more likely to be the starting dish)
+    _EASY_START_DISHES = {"Salad", "Pizza", "Coffee", "Breakfast"}
+
     def set_selected_dishes(self):
         dish_count = self.options.dish.value
         try:
@@ -455,5 +558,13 @@ class PlateUpWorld(World):
             if len(sanitized) >= dish_count:
                 self.selected_dishes = sanitized[:dish_count]
                 return
-        # Deterministic per-seed random selection, without replacement
-        self.selected_dishes = self.random.sample(all_dishes, k=min(dish_count, len(all_dishes)))
+        # Pick starting dish with weighted probability (easy dishes are 3× more likely)
+        weights = [3 if d in self._EASY_START_DISHES else 1 for d in all_dishes]
+        starting_dish = self.random.choices(all_dishes, weights=weights, k=1)[0]
+        if dish_count == 1:
+            self.selected_dishes = [starting_dish]
+            return
+        # Fill remaining slots with a random sample from the non-starting dishes
+        remaining = [d for d in all_dishes if d != starting_dish]
+        rest = self.random.sample(remaining, k=min(dish_count - 1, len(remaining)))
+        self.selected_dishes = [starting_dish] + rest

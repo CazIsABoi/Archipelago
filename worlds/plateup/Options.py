@@ -7,6 +7,7 @@ class Goal(Choice):
     display_name = "Goal"
     option_franchise_x_times = 0
     option_complete_x_days = 1
+    option_reach_day_x_with_dishes = 2
     default = 0
 
 class FranchiseCount(Range):
@@ -22,6 +23,20 @@ class DayCount(Range):
     range_start = 10
     range_end = 1000
     default = 10
+
+class DayTarget(Range):
+    """Target day to reach for the 'reach_day_x_with_dishes' goal. The player must survive to this global day with the required number of dishes active. (Only used if Goal=reach_day_x_with_dishes)"""
+    display_name = "Day Target"
+    range_start = 15
+    range_end = 100
+    default = 15
+
+class DishGoalCount(Range):
+    """How many dishes must be active when the player reaches the target day. Must not exceed the 'dish' option value. (Only used if Goal=reach_day_x_with_dishes)"""
+    display_name = "Required Dishes at Target Day"
+    range_start = 1
+    range_end = 17
+    default = 3
 
 class DayLeaseInterval(Range):
     """How many in-game days between each required Day Lease (min 1)."""
@@ -88,6 +103,12 @@ class StartingMoneyCap(Range):
     default = 20
 
 
+class ApplianceUnlocks(Toggle):
+    """Enable specific appliance unlock items in the pool. When disabled, only Random Appliance items are used."""
+    display_name = "Enable Appliance Unlocks"
+    default = 1
+
+
 class TrapCards(Toggle):
     """Enable trap cards that add Random Customer Card items to the pool."""
     display_name = "Enable Trap Cards"
@@ -122,11 +143,31 @@ class SettingExtraChecks(OptionList):
     _allowed = tuple(OPTIONAL_SETTING_NAMES)
 
 
+class StartingCards(Choice):
+    """Choose which difficulty of Customer Cards the player starts with. The client will deal these cards at the start of a run. Pair with starting_cards_amount to set how many are dealt."""
+    display_name = "Starting Cards"
+    option_none = 0
+    option_easy = 1
+    option_hard = 2
+    option_both = 3
+    default = 0
+
+
+class StartingCardsAmount(Range):
+    """How many starting Customer Cards are dealt at the start of a run. Requires starting_cards to not be none. Also determines how many Remove Card items are placed in the pool."""
+    display_name = "Starting Cards Amount"
+    range_start = 1
+    range_end = 8
+    default = 3
+
+
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
     franchise_count: FranchiseCount
     day_count: DayCount
+    day_target: DayTarget
+    dish_goal_count: DishGoalCount
     dish: DishCount
     appliances_kept: ItemsKept
     death_link: DeathLink
@@ -136,8 +177,10 @@ class PlateUpOptions(PerGameCommonOptions):
     player_speed_upgrade_count: PlayerSpeedUpgradeCount
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
     starting_money_cap: StartingMoneyCap
+    appliance_unlocks: ApplianceUnlocks
     trap_cards: TrapCards
     setting_checks: SettingChecks
     setting_check_mode: SettingCheckMode
     setting_extra_checks: SettingExtraChecks
-    # removed item count; items are generated automatically from total days
+    starting_cards: StartingCards
+    starting_cards_amount: StartingCardsAmount
