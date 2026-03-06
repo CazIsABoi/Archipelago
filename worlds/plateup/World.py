@@ -359,6 +359,8 @@ class PlateUpWorld(World):
             if f"Unlock {name}" in self.item_name_to_id
         ] if self.options.appliance_unlocks.value else []
         filler_queue = ["5 Coins", "Random Filler Appliance", "10 Coins", "Random Filler Appliance", "20 Coins", "Random Filler Appliance"]
+        if self.options.decoration_unlocks.value:
+            filler_queue = ["5 Coins", "Random Decoration Unlock", "10 Coins", "Random Filler Appliance", "20 Coins", "Random Decoration Unlock"]
         unlock_index = 0
         for i in range(remaining):
             if i % 2 == 0:
@@ -465,6 +467,7 @@ class PlateUpWorld(World):
             "day_lease_interval",
             "starting_money_cap",
             "appliance_unlocks",
+            "decoration_unlocks",
             "trap_cards",
             "setting_checks",
             "setting_check_mode",

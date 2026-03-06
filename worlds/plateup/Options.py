@@ -109,6 +109,12 @@ class ApplianceUnlocks(Toggle):
     default = 1
 
 
+class DecorationUnlocks(Toggle):
+    """Enable Random Decoration Unlock filler items in the pool."""
+    display_name = "Enable Decoration Unlocks"
+    default = 1
+
+
 class TrapCards(Toggle):
     """Enable trap cards that add Random Customer Card items to the pool."""
     display_name = "Enable Trap Cards"
@@ -178,6 +184,7 @@ class PlateUpOptions(PerGameCommonOptions):
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
     starting_money_cap: StartingMoneyCap
     appliance_unlocks: ApplianceUnlocks
+    decoration_unlocks: DecorationUnlocks
     trap_cards: TrapCards
     setting_checks: SettingChecks
     setting_check_mode: SettingCheckMode

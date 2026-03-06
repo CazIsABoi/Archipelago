@@ -104,6 +104,9 @@ ITEMS = {
     "10 Coins": (18, ItemClassification.filler),
     "20 Coins": (19, ItemClassification.filler),
     #endregion
+    #region decorations
+    "Random Decoration Unlock": (100, ItemClassification.filler),
+    #endregion
     #region traps
     "EVERYTHING IS ON FIRE": (20000, ItemClassification.trap),
     "Super Slow": (20001, ItemClassification.trap),
