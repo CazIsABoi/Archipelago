@@ -38,16 +38,30 @@ class DishGoalCount(Range):
     range_end = 17
     default = 3
 
+class DayLeasesEnabled(Toggle):
+    """Enable Day Lease progression items. When disabled, no Day Lease items are placed and days are never gated by leases."""
+    display_name = "Enable Day Leases"
+    default = 1
+
+
 class DayLeaseInterval(Range):
-    """How many in-game days between each required Day Lease (min 1)."""
+    """How many in-game days between each required Day Lease (min 1). Only relevant when day_leases_enabled is on."""
     display_name = "Day Lease Interval"
     range_start = 1
     range_end = 30
     default = 5
 
 class DishCount(Range):
-    """How many dishes get dedicated checks and unlocks -1 (1 free starter dish). 0 keeps every dish unlocked and disables dish checks."""
+    """How many dishes get dedicated checks and unlocks. 0 keeps every dish unlocked and disables dish checks."""
     display_name = "Starting Dish Count"
+    range_start = 0
+    range_end = 17
+    default = 1
+
+
+class FreeStarterDishes(Range):
+    """How many dishes the player starts with already unlocked when playing with locked dishes (dish > 0). Defaults to 1 (the classic single free starter). Set to 0 to require unlocking every dish, or higher to begin with more dishes pre-unlocked."""
+    display_name = "Free Starter Dishes"
     range_start = 0
     range_end = 17
     default = 1
@@ -167,6 +181,35 @@ class StartingCardsAmount(Range):
     default = 3
 
 
+class StartingGroupSize(Range):
+    """Set the starting customer group size. Higher values make the game significantly harder. When enabled (>0), places (starting_group_size - 1) 'Reduce Group Size' progression items in the pool, distributed evenly across the run like speed upgrades. Set to 0 to disable."""
+    display_name = "Starting Group Size"
+    range_start = 0
+    range_end = 8
+    default = 0
+
+
+class GlobalPatienceEnabled(Toggle):
+    """Enable Global Patience Increase progression items. When enabled, places 'global_patience_upgrade_count' items that are required to reach later days, distributed evenly across the run like speed upgrades."""
+    display_name = "Enable Global Patience Upgrades"
+    default = 0
+
+
+class GlobalPatienceUpgradeCount(Range):
+    """How many Global Patience Increase items to place (1-10). Only relevant when global_patience_enabled is on."""
+    display_name = "Global Patience Upgrade Count"
+    range_start = 1
+    range_end = 10
+    default = 5
+
+
+class AchievementChecks(Toggle):
+    """Enable achievement location checks. Adds in-game achievements as checks. Some are
+    restricted by goal (Overtime) or appliance unlocks (Charcoal Factory, Safety Last)."""
+    display_name = "Enable Achievement Checks"
+    default = 1
+
+
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
@@ -175,10 +218,12 @@ class PlateUpOptions(PerGameCommonOptions):
     day_target: DayTarget
     dish_goal_count: DishGoalCount
     dish: DishCount
+    free_starter_dishes: FreeStarterDishes
     appliances_kept: ItemsKept
     death_link: DeathLink
     death_link_behavior: DeathLinkBehavior
     appliance_speed_mode: ApplianceSpeedMode
+    day_leases_enabled: DayLeasesEnabled
     day_lease_interval: DayLeaseInterval
     player_speed_upgrade_count: PlayerSpeedUpgradeCount
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
@@ -191,3 +236,7 @@ class PlateUpOptions(PerGameCommonOptions):
     setting_extra_checks: SettingExtraChecks
     starting_cards: StartingCards
     starting_cards_amount: StartingCardsAmount
+    starting_group_size: StartingGroupSize
+    global_patience_enabled: GlobalPatienceEnabled
+    global_patience_upgrade_count: GlobalPatienceUpgradeCount
+    achievement_checks: AchievementChecks

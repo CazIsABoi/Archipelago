@@ -74,6 +74,9 @@ appliance_unlock_dictionary = {
     60: "Cookie Tray",
     61: "Cupcake Tray",
     62: "Doughnut Tray",
+    63: "Trainers",
+    64: "Sharp Knife",
+    65: "Gas Override",
 }
 
 ITEMS = {
@@ -93,6 +96,8 @@ ITEMS = {
     "Day Lease": (15, ItemClassification.progression),
     "Money Cap Increase": (16, ItemClassification.progression),
     "Remove Card": (21, ItemClassification.progression),
+    "Reduce Group Size": (23, ItemClassification.progression),
+    "Global Patience Increase": (28, ItemClassification.progression),
     #endregion
 
     #region useful
@@ -107,10 +112,21 @@ ITEMS = {
     #region decorations
     "Random Decoration Unlock": (100, ItemClassification.filler),
     #endregion
+    #region gameplay filler
+    "Patience Increase": (24, ItemClassification.filler),
+    "Less Customers": (25, ItemClassification.filler),
+    "Minimum Group Size Decrease": (26, ItemClassification.filler),
+    "Maximum Group Size Decrease": (27, ItemClassification.filler),
+    "Mess Reduction": (29, ItemClassification.filler),
+    #endregion
     #region traps
     "EVERYTHING IS ON FIRE": (20000, ItemClassification.trap),
     "Super Slow": (20001, ItemClassification.trap),
     "Random Customer Card": (20002, ItemClassification.trap),
+    "Patience Decrease": (20003, ItemClassification.trap),
+    "More Customers": (20004, ItemClassification.trap),
+    "Minimum Group Size Increase": (20005, ItemClassification.trap),
+    "Maximum Group Size Increase": (20006, ItemClassification.trap),
     #endregion
 }
 

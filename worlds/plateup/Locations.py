@@ -147,3 +147,24 @@ _add_setting_block(BASE_SETTING_NAME, 0)
 for idx, slug in enumerate(OPTIONAL_SETTING_NAMES, start=1):
     display = OPTIONAL_SETTING_DISPLAY[slug]
     _add_setting_block(display, idx)
+
+# Achievement location checks (IDs 140001–140017)
+ACHIEVEMENT_LOCATIONS: Dict[str, int] = {
+    "This Is Fine":      140001,
+    "Fireman":           140002,
+    "Oh No":             140003,
+    "Charcoal Factory":  140004,
+    "Safety Last":       140005,
+    "Learning By Doing": 140006,
+    "Please Wait":       140007,
+    "Flawless Timing":   140008,
+    "Health Inspector?": 140009,
+    "Circle Line":       140010,
+    "Chef School":       140011,
+    "New Chef Plus":     140012,
+    "Overtime Day 5":    140013,
+    "Overtime Day 10":   140014,
+    "Overtime Day 15":   140015,
+    "Anti-social":       140016,
+    "Work Smart":        140017,
+}

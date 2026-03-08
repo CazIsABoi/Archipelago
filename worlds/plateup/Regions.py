@@ -12,6 +12,7 @@ from .Locations import (
     DAY_LOCATION_DICT,
     DISH_LOCATIONS,
     SETTING_LOCATIONS,
+    ACHIEVEMENT_LOCATIONS,
 )
 
 if TYPE_CHECKING:
@@ -23,11 +24,13 @@ def create_plateup_regions(world: "PlateUpWorld"):
     progression_region = Region("Progression", world.player, world.multiworld)
     dish_region = Region("Dish Checks", world.player, world.multiworld)
     setting_region = Region("Setting Checks", world.player, world.multiworld)
+    achievement_region = Region("Achievement Checks", world.player, world.multiworld)
 
-    world.multiworld.regions.extend([menu_region, progression_region, dish_region, setting_region])
+    world.multiworld.regions.extend([menu_region, progression_region, dish_region, setting_region, achievement_region])
     menu_region.connect(progression_region)
     progression_region.connect(dish_region)
     menu_region.connect(setting_region)
+    menu_region.connect(achievement_region)
 
     user_goal = world.options.goal.value
     progression_locs = []
@@ -36,11 +39,18 @@ def create_plateup_regions(world: "PlateUpWorld"):
         # Franchise goal: Build per-run, per-day regions with chained entrances and lease requirements.
 
         required_franchises = world.options.franchise_count.value
-        interval = max(1, int(world.options.day_lease_interval.value))
+        interval = max(1, int(world.options.day_lease_interval.value)) if world.options.day_leases_enabled.value else 9999
         # Speed upgrades gating: split total franchise days into chunks based on configured player speed upgrades
         total_days = 15 * required_franchises
         speed_slots = max(1, int(world.options.player_speed_upgrade_count.value))
         speed_interval = max(1, math.ceil(total_days / speed_slots))
+
+        group_size_opt = int(world.options.starting_group_size.value)
+        group_item_count = max(0, group_size_opt - 1)
+        group_interval = max(1, math.ceil(total_days / group_item_count)) if group_item_count > 0 else 9999
+
+        patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
+        patience_interval = max(1, math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
 
         def run_suffix(run: int) -> str:
             if run == 0:
@@ -90,12 +100,16 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 # Speed upgrades required based on global day progression
                 global_day = run * 15 + d
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
+                grp_req = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
+                pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
 
-                def rule_factory(pl=prev_label, s=suff, req=req, spd=speed_req):
+                def rule_factory(pl=prev_label, s=suff, req=req, spd=speed_req, grp=grp_req, pat=pat_req):
                     return lambda state: (
                         state.can_reach(f"Franchise - Complete {pl}{s}", "Location", world.player)
                         and state.has("Day Lease", world.player, req)
                         and state.has("Speed Upgrade Player", world.player, spd)
+                        and state.has("Reduce Group Size", world.player, grp)
+                        and state.has("Global Patience Increase", world.player, pat)
                     )
 
                 e.access_rule = rule_factory()
@@ -117,13 +131,17 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 req = leases_required_for(run + 1, 1)
                 global_day = (run + 1) * 15 + 1
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
+                grp_req = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
+                pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
                 prev_suff = suff
 
-                def next_run_rule_factory(pl=prev_label, ps=prev_suff, req=req, spd=speed_req):
+                def next_run_rule_factory(pl=prev_label, ps=prev_suff, req=req, spd=speed_req, grp=grp_req, pat=pat_req):
                     return lambda state: (
                         state.can_reach(f"Franchise - Complete {pl}{ps}", "Location", world.player)
                         and state.has("Day Lease", world.player, req)
                         and state.has("Speed Upgrade Player", world.player, spd)
+                        and state.has("Reduce Group Size", world.player, grp)
+                        and state.has("Global Patience Increase", world.player, pat)
                     )
 
                 e.access_rule = next_run_rule_factory()
@@ -239,12 +257,19 @@ def create_plateup_regions(world: "PlateUpWorld"):
             required_days = world.options.day_target.value
         else:
             required_days = world.options.day_count.value
-        interval = max(1, int(world.options.day_lease_interval.value))
+        interval = max(1, int(world.options.day_lease_interval.value)) if world.options.day_leases_enabled.value else 9999
         # Use floor here; only create stars that correspond to an existing day (star*3)
         max_stars = required_days // 3
         # Speed upgrades gating: split required_days into chunks based on configured player speed upgrades
         speed_slots = max(1, int(world.options.player_speed_upgrade_count.value))
         speed_interval = max(1, math.ceil(required_days / speed_slots))
+
+        group_size_opt = int(world.options.starting_group_size.value)
+        group_item_count = max(0, group_size_opt - 1)
+        group_interval = max(1, math.ceil(required_days / group_item_count)) if group_item_count > 0 else 9999
+
+        patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
+        patience_interval = max(1, math.ceil(required_days / patience_item_count)) if patience_item_count > 0 else 9999
 
         # Create per-day regions
         day_regions = {}
@@ -269,13 +294,17 @@ def create_plateup_regions(world: "PlateUpWorld"):
             leases_required = (day - 1) // interval
             # Speed upgrades required to ENTER day d: floor((d-1)/speed_interval), capped at configured count
             speed_required = min(int(world.options.player_speed_upgrade_count.value), (day - 1) // speed_interval)
+            group_size_required = min(group_item_count, (day - 1) // group_interval) if group_item_count > 0 else 0
+            patience_required = min(patience_item_count, (day - 1) // patience_interval) if patience_item_count > 0 else 0
 
             # Access requires completion of previous day (location sits in source region => safe)
-            def entrance_rule_factory(d=day, req=leases_required, spd=speed_required):
+            def entrance_rule_factory(d=day, req=leases_required, spd=speed_required, grp=group_size_required, pat=patience_required):
                 return lambda state: (
                     state.can_reach(f"Complete Day {d-1}", "Location", world.player)
                     and state.has("Day Lease", world.player, req)
                     and state.has("Speed Upgrade Player", world.player, spd)
+                    and state.has("Reduce Group Size", world.player, grp)
+                    and state.has("Global Patience Increase", world.player, pat)
                 )
 
             e.access_rule = entrance_rule_factory()
@@ -436,5 +465,17 @@ def create_plateup_regions(world: "PlateUpWorld"):
                     # Keep setting checks as optional/filler by disallowing progression items.
                     loc.item_rule = lambda item: item.classification != ItemClassification.progression
                     setting_region.locations.append(loc)
+    except Exception:
+        pass
+
+    # Populate Achievement Checks region
+    try:
+        if getattr(world.options, 'achievement_checks', None) and world.options.achievement_checks.value:
+            planned = getattr(world, '_location_name_to_id', {})
+            for loc_name, loc_id in ACHIEVEMENT_LOCATIONS.items():
+                if loc_name not in planned:
+                    continue
+                loc = PlateUpLocation(world.player, loc_name, loc_id, parent=achievement_region)
+                achievement_region.locations.append(loc)
     except Exception:
         pass

@@ -77,10 +77,12 @@ class TestReachDayWithDishesAllDishesMustBeActive(PlateUpTestBase):
         self.assertIsNotNone(self.multiworld.completion_condition[self.player])
 
     def test_all_dish_unlocks_in_pool(self) -> None:
-        """With dish=3 and dish_goal_count=3, 2 unlock items should be in the pool."""
+        """With dish=3 and dish_goal_count=3, 2 dish unlock items should be in the pool."""
         unlock_items = [
             item for item in self.multiworld.itempool
-            if item.player == self.player and item.name.endswith(" Unlock")
+            if item.player == self.player
+            and item.name.endswith(" Unlock")
+            and item.name != "Random Decoration Unlock"
         ]
         # One dish is free (starter), so 2 unlock items expected
         self.assertEqual(len(unlock_items), 2)

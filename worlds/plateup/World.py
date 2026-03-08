@@ -12,6 +12,7 @@ from .Locations import (
     DAY_LOCATION_DICT,
     EXCLUDED_LOCATIONS,
     SETTING_LOCATIONS,
+    ACHIEVEMENT_LOCATIONS,
     BASE_SETTING_NAME,
     OPTIONAL_SETTING_DISPLAY,
 )
@@ -37,6 +38,7 @@ class PlateUpWorld(World):
         **DAY_LOCATION_DICT,
         **DISH_LOCATIONS,
         **SETTING_LOCATIONS,
+        **ACHIEVEMENT_LOCATIONS,
     }
 
     def __init__(self, *args, **kwargs):
@@ -181,6 +183,25 @@ class PlateUpWorld(World):
                     loc_id = SETTING_LOCATIONS.get(loc_name)
                     if loc_id:
                         locs[loc_name] = loc_id
+
+        if self.options.achievement_checks.value:
+            _overtime_thresholds = {"Overtime Day 5": 20, "Overtime Day 10": 25, "Overtime Day 15": 30}
+            effective_days = (
+                self.options.day_target.value if goal == 2 else
+                self.options.day_count.value if goal == 1 else
+                0  # franchise: overtime not available
+            )
+            for name, loc_id in ACHIEVEMENT_LOCATIONS.items():
+                if name in _overtime_thresholds:
+                    # Overtime only available for day-based goals at sufficient length
+                    if goal == 0 or effective_days < _overtime_thresholds[name]:
+                        continue
+                elif name == "New Chef Plus":
+                    # Requires reaching day 15; exclude if day goal can't hit 15
+                    if goal == 1 and self.options.day_count.value < 15:
+                        continue
+                locs[name] = loc_id
+
         return locs
 
     def validate_ids(self):
@@ -234,9 +255,11 @@ class PlateUpWorld(World):
         total_locations = base_locations
         item_pool = []
 
-        # Always remove one dish to be the starting dish (if any)
-        self.starting_dish = self.selected_dishes[0] if self.selected_dishes else None
-        unlock_dishes = self.selected_dishes[1:] if len(self.selected_dishes) > 1 else []
+        # Determine how many dishes start unlocked (default: 1 free starter)
+        free_count = min(int(self.options.free_starter_dishes.value), len(self.selected_dishes))
+        self.starting_dishes = self.selected_dishes[:free_count]
+        self.starting_dish = self.starting_dishes[0] if self.starting_dishes else None  # backward compat
+        unlock_dishes = self.selected_dishes[free_count:]
 
         # Add unlock items for the rest of the selected dishes (or all if none selected)
         for dish in unlock_dishes:
@@ -295,12 +318,13 @@ class PlateUpWorld(World):
             ])
 
         # Number of Day Lease items required depends on configurable interval
-        interval = max(1, int(self.options.day_lease_interval.value))
-        lease_count = math.ceil(total_days / interval)
-        item_pool.extend([
-            self.create_item("Day Lease", classification=ItemClassification.progression)
-            for _ in range(lease_count)
-        ])
+        if self.options.day_leases_enabled.value:
+            interval = max(1, int(self.options.day_lease_interval.value))
+            lease_count = math.ceil(total_days / interval)
+            item_pool.extend([
+                self.create_item("Day Lease", classification=ItemClassification.progression)
+                for _ in range(lease_count)
+            ])
 
         # Add Remove Card items if starting cards are enabled
         if self.options.starting_cards.value != 0:
@@ -308,6 +332,23 @@ class PlateUpWorld(World):
             item_pool.extend([
                 self.create_item("Remove Card", classification=ItemClassification.progression)
                 for _ in range(remove_card_count)
+            ])
+
+        # Add Reduce Group Size items if starting_group_size is enabled (>0)
+        group_size = int(self.options.starting_group_size.value)
+        if group_size > 0:
+            group_item_count = group_size - 1
+            item_pool.extend([
+                self.create_item("Reduce Group Size", classification=ItemClassification.progression)
+                for _ in range(group_item_count)
+            ])
+
+        # Add Global Patience Increase items if enabled
+        if self.options.global_patience_enabled.value:
+            patience_upgrade_count = int(self.options.global_patience_upgrade_count.value)
+            item_pool.extend([
+                self.create_item("Global Patience Increase", classification=ItemClassification.progression)
+                for _ in range(patience_upgrade_count)
             ])
 
         # Add a small number of Shop Size Increase items (1 per 20 days, min 1)
@@ -326,6 +367,32 @@ class PlateUpWorld(World):
                 self.create_item("Random Customer Card", classification=ItemClassification.trap)
                 for _ in range(trap_to_add)
             ])
+            # Additional traps and their filler counterparts, scaled with run length.
+            # Patience/Customer pairs have no strict 1:1 requirement.
+            # Min/Max Group Size pairs are strictly 1:1 (equal traps and filler).
+            patience_count = max(1, total_days // 20)
+            customers_count = max(1, total_days // 20)
+            grp_trap_count = max(1, total_days // 25)
+            new_items = (
+                [self.create_item("Patience Decrease", classification=ItemClassification.trap) for _ in range(patience_count)] +
+                [self.create_item("More Customers", classification=ItemClassification.trap) for _ in range(customers_count)] +
+                [self.create_item("Minimum Group Size Increase", classification=ItemClassification.trap) for _ in range(grp_trap_count)] +
+                [self.create_item("Maximum Group Size Increase", classification=ItemClassification.trap) for _ in range(grp_trap_count)] +
+                [self.create_item("Patience Increase", classification=ItemClassification.filler) for _ in range(patience_count)] +
+                [self.create_item("Less Customers", classification=ItemClassification.filler) for _ in range(customers_count)] +
+                [self.create_item("Minimum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)] +
+                [self.create_item("Maximum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)]
+            )
+            remaining_cap = max(0, total_locations - len(item_pool))
+            item_pool.extend(new_items[:remaining_cap])
+        else:
+            # When traps are disabled, still add up to 2 of each group size filler (1:1 balanced, no trap counterpart).
+            grp_filler = (
+                [self.create_item("Minimum Group Size Decrease", classification=ItemClassification.filler) for _ in range(2)] +
+                [self.create_item("Maximum Group Size Decrease", classification=ItemClassification.filler) for _ in range(2)]
+            )
+            remaining_cap = max(0, total_locations - len(item_pool))
+            item_pool.extend(grp_filler[:remaining_cap])
 
         # Top up remaining capacity with a mix of normal and filler appliances,
         # ensuring there are enough filler-classified items to cover excluded locations.
@@ -360,7 +427,9 @@ class PlateUpWorld(World):
         ] if self.options.appliance_unlocks.value else []
         filler_queue = ["5 Coins", "Random Filler Appliance", "10 Coins", "Random Filler Appliance", "20 Coins", "Random Filler Appliance"]
         if self.options.decoration_unlocks.value:
-            filler_queue = ["5 Coins", "Random Decoration Unlock", "10 Coins", "Random Filler Appliance", "20 Coins", "Random Decoration Unlock"]
+            filler_queue = ["5 Coins", "Random Decoration Unlock", "10 Coins", "Mess Reduction", "20 Coins", "Random Decoration Unlock"]
+        else:
+            filler_queue = ["5 Coins", "Random Filler Appliance", "10 Coins", "Mess Reduction", "20 Coins", "Random Filler Appliance"]
         unlock_index = 0
         for i in range(remaining):
             if i % 2 == 0:
@@ -418,15 +487,15 @@ class PlateUpWorld(World):
             dish_count_opt = self.options.dish.value
             dish_goal = self.options.dish_goal_count.value
             day_loc = f"Complete Day {target_day}"
-            if dish_goal <= 1 or dish_count_opt == 0:
-                # Just need to reach the target day
+            free_count = min(int(self.options.free_starter_dishes.value), len(getattr(self, "selected_dishes", [])))
+            if dish_goal <= free_count or dish_count_opt == 0:
+                # All required dishes are already free, or dishes are disabled; just reach the target day
                 def plateup_completion(state: CollectionState, dl=day_loc):
                     return state.can_reach(dl, "Location", self.player)
             else:
                 # Need to reach target day AND have dish_goal dishes active
-                # (1 starting dish free; need dish_goal-1 unlocks from the item pool)
-                needed_unlocks = dish_goal - 1
-                all_unlock_names = [f"{dish} Unlock" for dish in getattr(self, "selected_dishes", [])[1:]]
+                needed_unlocks = dish_goal - free_count
+                all_unlock_names = [f"{dish} Unlock" for dish in getattr(self, "selected_dishes", [])[free_count:]]
                 unlock_names = [n for n in all_unlock_names if n in self.item_name_to_id]
                 def plateup_completion(state: CollectionState, dl=day_loc, un=unlock_names, nu=needed_unlocks):
                     return (
@@ -464,7 +533,9 @@ class PlateUpWorld(World):
             "death_link",
             "death_link_behavior",
             "appliance_speed_mode",
+            "day_leases_enabled",
             "day_lease_interval",
+            "free_starter_dishes",
             "starting_money_cap",
             "appliance_unlocks",
             "decoration_unlocks",
@@ -474,13 +545,19 @@ class PlateUpWorld(World):
             "setting_extra_checks",
             "starting_cards",
             "starting_cards_amount",
+            "starting_group_size",
+            "global_patience_enabled",
+            "global_patience_upgrade_count",
+            "achievement_checks",
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
         if self.options.dish.value == 0:
             options_dict["selected_dishes"] = []
             options_dict["starting_dish"] = None
+            options_dict["starting_dishes"] = []
         else:
             options_dict["starting_dish"] = getattr(self, "starting_dish", None)
+            options_dict["starting_dishes"] = getattr(self, "starting_dishes", [options_dict["starting_dish"]] if options_dict["starting_dish"] else [])
             options_dict["selected_dishes"] = getattr(self, "selected_dishes", [])
             # Diagnostics: count of planned dish day locations included
             planned = getattr(self, "_location_name_to_id", {})

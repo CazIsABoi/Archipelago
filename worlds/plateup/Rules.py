@@ -10,7 +10,8 @@ from BaseClasses import Location, Entrance
 from .Locations import (
     DISH_LOCATIONS,
     SETTING_LOCATIONS,
-    dish_dictionary
+    dish_dictionary,
+    ACHIEVEMENT_LOCATIONS,
 )
 
 if TYPE_CHECKING:
@@ -44,9 +45,12 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
     # Chain dish day locations to require the previous day.
     # For non-starting dishes, Day 1 requires the corresponding Unlock item.
     dish_order = getattr(world, 'valid_dish_locations', [])
-    starting_dish = getattr(world, 'starting_dish', None)
+    starting_dishes = getattr(world, 'starting_dishes', None)
+    if starting_dishes is None:
+        sd = getattr(world, 'starting_dish', None)
+        starting_dishes = [sd] if sd else []
 
-    interval = max(1, int(world.options.day_lease_interval.value))
+    interval = max(1, int(world.options.day_lease_interval.value)) if world.options.day_leases_enabled.value else 9999
     try:
         goal_val = world.options.goal.value
         if goal_val == 2:
@@ -67,6 +71,11 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
         speed_upgrade_count = 0
     speed_slots = max(1, speed_upgrade_count)
     speed_interval = max(1, math.ceil(total_progress_days / speed_slots))
+    group_size_opt = int(world.options.starting_group_size.value)
+    group_item_count = max(0, group_size_opt - 1)
+    group_interval = max(1, math.ceil(total_progress_days / group_item_count)) if group_item_count > 0 else 9999
+    patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
+    patience_interval = max(1, math.ceil(total_progress_days / patience_item_count)) if patience_item_count > 0 else 9999
 
     for i in range(len(dish_order) - 1):
         current_loc_name = dish_order[i]
@@ -81,7 +90,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                 # If next is Day 1 of a non-starting dish, require Unlock
                 if next_loc_name.endswith(" - Day 1"):
                     dish_name = next_loc_name.rsplit(" - Day ", 1)[0]
-                    if starting_dish and dish_name != starting_dish:
+                    if dish_name not in starting_dishes:
                         unlock_item = f"{dish_name} Unlock"
                         add_rule(loc, lambda state, item=unlock_item: state.has(item, world.player))
 
@@ -89,11 +98,15 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                 if day_number:
                     leases_required = max(0, (day_number - 1) // interval)
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
+                    group_required = min(group_item_count, (day_number - 1) // group_interval) if group_item_count > 0 else 0
+                    patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
                     add_rule(
                         loc,
-                        lambda state, req=leases_required, spd=speed_required: (
+                        lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
                             state.has("Day Lease", world.player, req)
                             and state.has("Speed Upgrade Player", world.player, spd)
+                            and state.has("Reduce Group Size", world.player, grp)
+                            and state.has("Global Patience Increase", world.player, pat)
                         )
                     )
             except KeyError:
@@ -112,11 +125,15 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                 if day_number:
                     leases_required = max(0, (day_number - 1) // interval)
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
+                    group_required = min(group_item_count, (day_number - 1) // group_interval) if group_item_count > 0 else 0
+                    patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
                     add_rule(
                         loc,
-                        lambda state, req=leases_required, spd=speed_required: (
+                        lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
                             state.has("Day Lease", world.player, req)
                             and state.has("Speed Upgrade Player", world.player, spd)
+                            and state.has("Reduce Group Size", world.player, grp)
+                            and state.has("Global Patience Increase", world.player, pat)
                         )
                     )
             except KeyError:
@@ -164,6 +181,45 @@ def filter_selected_settings(world: "PlateUpWorld"):
                 valid_locs.append(loc_name)
 
     world.valid_setting_locations = valid_locs
+
+def apply_achievement_rules(world: "PlateUpWorld"):
+    """Set access rules for achievement location checks."""
+    if not getattr(world.options, 'achievement_checks', None) or not world.options.achievement_checks.value:
+        return
+
+    goal = world.options.goal.value
+
+    # New Chef Plus — requires completing day 15
+    try:
+        loc = world.get_location("New Chef Plus")
+        if goal == 0:  # franchise goal
+            loc.access_rule = lambda state: state.can_reach(
+                "Franchise - Complete Day 15", "Location", world.player
+            )
+        else:  # day-based goals
+            loc.access_rule = lambda state: state.can_reach(
+                "Complete Day 15", "Location", world.player
+            )
+    except KeyError:
+        pass
+
+    # Overtime achievements — only exist for day-based goals at sufficient length
+    if goal != 0:
+        _overtime_day_requirements = {
+            "Overtime Day 5":  20,
+            "Overtime Day 10": 25,
+            "Overtime Day 15": 30,
+        }
+        for ach_name, required_day in _overtime_day_requirements.items():
+            try:
+                loc = world.get_location(ach_name)
+                day_loc = f"Complete Day {required_day}"
+                loc.access_rule = lambda state, dl=day_loc: state.can_reach(
+                    dl, "Location", world.player
+                )
+            except KeyError:
+                pass
+
 
 def apply_rules(world: "PlateUpWorld"):
     goal_type = world.options.goal.value
@@ -230,13 +286,18 @@ def apply_rules(world: "PlateUpWorld"):
         except Exception:
             required_franchises = 1
         # Lease cadence and speed-gating must match Regions.create_plateup_regions
-        interval = max(1, int(world.options.day_lease_interval.value))
+        interval = max(1, int(world.options.day_lease_interval.value)) if world.options.day_leases_enabled.value else 9999
         # Compute speed interval across all franchise days
         total_days = 15 * required_franchises if required_franchises > 0 else 15
         speed_slots = max(1, int(world.options.player_speed_upgrade_count.value))
         # Ceiling so last chunk can be shorter
         import math as _math
         speed_interval = max(1, _math.ceil(total_days / speed_slots))
+        group_size_opt = int(world.options.starting_group_size.value)
+        group_item_count = max(0, group_size_opt - 1)
+        group_interval = max(1, _math.ceil(total_days / group_item_count)) if group_item_count > 0 else 9999
+        patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
+        patience_interval = max(1, _math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
 
         def run_suffix(run: int) -> str:
             if run == 0:
@@ -257,6 +318,8 @@ def apply_rules(world: "PlateUpWorld"):
                 global_day = run * 15 + d
                 leases_required = (global_day - 1) // interval
                 speed_required = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
+                group_required = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
+                patience_required = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
 
                 # Previous completion within the same run or prior run's Day 15 when d == 1 and run > 0
                 if d == 1:
@@ -272,17 +335,21 @@ def apply_rules(world: "PlateUpWorld"):
                     # Build rule requiring leases/speed (and previous completion if applicable)
                     if prev_name is None:
                         loc_cur.access_rule = (
-                            lambda state, req=leases_required, spd=speed_required: (
+                            lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
                                 state.has("Day Lease", world.player, req)
                                 and state.has("Speed Upgrade Player", world.player, spd)
+                                and state.has("Reduce Group Size", world.player, grp)
+                                and state.has("Global Patience Increase", world.player, pat)
                             )
                         )
                     else:
                         loc_cur.access_rule = (
-                            lambda state, p=prev_name, req=leases_required, spd=speed_required: (
+                            lambda state, p=prev_name, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
                                 state.can_reach(p, "Location", world.player)
                                 and state.has("Day Lease", world.player, req)
                                 and state.has("Speed Upgrade Player", world.player, spd)
+                                and state.has("Reduce Group Size", world.player, grp)
+                                and state.has("Global Patience Increase", world.player, pat)
                             )
                         )
                 except KeyError:
@@ -299,3 +366,5 @@ def apply_rules(world: "PlateUpWorld"):
             lose_loc.access_rule = lambda state: state.can_reach("Franchise - Complete First Day", "Location", world.player)
     except KeyError:
         pass
+
+    apply_achievement_rules(world)
