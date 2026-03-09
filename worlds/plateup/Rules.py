@@ -76,6 +76,11 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
     group_interval = max(1, math.ceil(total_progress_days / group_item_count)) if group_item_count > 0 else 9999
     patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
     patience_interval = max(1, math.ceil(total_progress_days / patience_item_count)) if patience_item_count > 0 else 9999
+    money_cap_enabled = world.options.money_cap_enabled.value
+    table_in_logic = (
+        world.options.appliance_unlocks.value and
+        "Unlock Table (Large)" in world.item_name_to_id
+    )
 
     for i in range(len(dish_order) - 1):
         current_loc_name = dish_order[i]
@@ -100,15 +105,19 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
                     group_required = min(group_item_count, (day_number - 1) // group_interval) if group_item_count > 0 else 0
                     patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
+                    money_cap_required = day_number // 15 if money_cap_enabled else 0
                     add_rule(
                         loc,
-                        lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
+                        lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required, cap=money_cap_required: (
                             state.has("Day Lease", world.player, req)
                             and state.has("Speed Upgrade Player", world.player, spd)
                             and state.has("Reduce Group Size", world.player, grp)
                             and state.has("Global Patience Increase", world.player, pat)
+                            and state.has("Money Cap Increase", world.player, cap)
                         )
                     )
+                    if table_in_logic and day_number >= 15:
+                        add_rule(loc, lambda state: state.has("Unlock Dining Table", world.player))
             except KeyError:
                 pass
 
@@ -127,15 +136,19 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
                     group_required = min(group_item_count, (day_number - 1) // group_interval) if group_item_count > 0 else 0
                     patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
+                    money_cap_required = day_number // 15 if money_cap_enabled else 0
                     add_rule(
                         loc,
-                        lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
+                        lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required, cap=money_cap_required: (
                             state.has("Day Lease", world.player, req)
                             and state.has("Speed Upgrade Player", world.player, spd)
                             and state.has("Reduce Group Size", world.player, grp)
                             and state.has("Global Patience Increase", world.player, pat)
+                            and state.has("Money Cap Increase", world.player, cap)
                         )
                     )
+                    if table_in_logic and day_number >= 15:
+                        add_rule(loc, lambda state: state.has("Unlock Dining Table", world.player))
             except KeyError:
                 pass
 
@@ -298,6 +311,11 @@ def apply_rules(world: "PlateUpWorld"):
         group_interval = max(1, _math.ceil(total_days / group_item_count)) if group_item_count > 0 else 9999
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, _math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
+        money_cap_enabled = world.options.money_cap_enabled.value
+        table_in_logic = (
+            world.options.appliance_unlocks.value and
+            "Unlock Dining Table" in world.item_name_to_id
+        )
 
         def run_suffix(run: int) -> str:
             if run == 0:
@@ -320,6 +338,8 @@ def apply_rules(world: "PlateUpWorld"):
                 speed_required = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
                 group_required = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
                 patience_required = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
+                money_cap_required = global_day // 15 if money_cap_enabled else 0
+                table_needed = table_in_logic and global_day >= 15
 
                 # Previous completion within the same run or prior run's Day 15 when d == 1 and run > 0
                 if d == 1:
@@ -335,21 +355,25 @@ def apply_rules(world: "PlateUpWorld"):
                     # Build rule requiring leases/speed (and previous completion if applicable)
                     if prev_name is None:
                         loc_cur.access_rule = (
-                            lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
+                            lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required, cap=money_cap_required, tbl=table_needed: (
                                 state.has("Day Lease", world.player, req)
                                 and state.has("Speed Upgrade Player", world.player, spd)
                                 and state.has("Reduce Group Size", world.player, grp)
                                 and state.has("Global Patience Increase", world.player, pat)
+                                and state.has("Money Cap Increase", world.player, cap)
+                                and (state.has("Unlock Dining Table", world.player) if tbl else True)
                             )
                         )
                     else:
                         loc_cur.access_rule = (
-                            lambda state, p=prev_name, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required: (
+                            lambda state, p=prev_name, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required, cap=money_cap_required, tbl=table_needed: (
                                 state.can_reach(p, "Location", world.player)
                                 and state.has("Day Lease", world.player, req)
                                 and state.has("Speed Upgrade Player", world.player, spd)
                                 and state.has("Reduce Group Size", world.player, grp)
                                 and state.has("Global Patience Increase", world.player, pat)
+                                and state.has("Money Cap Increase", world.player, cap)
+                                and (state.has("Unlock Dining Table", world.player) if tbl else True)
                             )
                         )
                 except KeyError:

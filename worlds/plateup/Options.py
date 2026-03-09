@@ -109,6 +109,11 @@ class ApplianceSpeedUpgradeCount(Range):
     range_end = 10
     default = 5
 
+class MoneyCapEnabled(Toggle):
+    """Enable the money cap mechanic. When disabled, players have no gold limit and no Money Cap Increase items are placed."""
+    display_name = "Enable Money Cap"
+    default = 1
+
 class StartingMoneyCap(Range):
     """Starting total money cap (in gold). You cannot hold more than this amount at any time until increased by items."""
     display_name = "Starting Money Cap"
@@ -117,9 +122,24 @@ class StartingMoneyCap(Range):
     default = 20
 
 
+
+class MoneyCapIncreaseAmount(Range):
+    """How much gold each Money Cap Increase item adds to the player's maximum coin cap."""
+    display_name = "Money Cap Increase Amount"
+    range_start = 5
+    range_end = 100
+    default = 20
+
+
 class ApplianceUnlocks(Toggle):
     """Enable specific appliance unlock items in the pool. When disabled, only Random Appliance items are used."""
     display_name = "Enable Appliance Unlocks"
+    default = 1
+
+
+class ApplianceUnlockGrantsAppliance(Toggle):
+    """When enabled, finding an appliance unlock item also immediately grants the appliance for use. When disabled, it only adds the appliance to future shop pools."""
+    display_name = "Appliance Unlock Grants Appliance"
     default = 1
 
 
@@ -227,8 +247,11 @@ class PlateUpOptions(PerGameCommonOptions):
     day_lease_interval: DayLeaseInterval
     player_speed_upgrade_count: PlayerSpeedUpgradeCount
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
+    money_cap_enabled: MoneyCapEnabled
     starting_money_cap: StartingMoneyCap
+    money_cap_increase_amount: MoneyCapIncreaseAmount
     appliance_unlocks: ApplianceUnlocks
+    appliance_unlock_grants_appliance: ApplianceUnlockGrantsAppliance
     decoration_unlocks: DecorationUnlocks
     trap_cards: TrapCards
     setting_checks: SettingChecks

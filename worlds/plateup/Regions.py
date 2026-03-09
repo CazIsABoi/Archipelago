@@ -13,6 +13,7 @@ from .Locations import (
     DISH_LOCATIONS,
     SETTING_LOCATIONS,
     ACHIEVEMENT_LOCATIONS,
+    REROLL_LOCATIONS,
 )
 
 if TYPE_CHECKING:
@@ -25,12 +26,14 @@ def create_plateup_regions(world: "PlateUpWorld"):
     dish_region = Region("Dish Checks", world.player, world.multiworld)
     setting_region = Region("Setting Checks", world.player, world.multiworld)
     achievement_region = Region("Achievement Checks", world.player, world.multiworld)
+    reroll_region = Region("Reroll Checks", world.player, world.multiworld)
 
-    world.multiworld.regions.extend([menu_region, progression_region, dish_region, setting_region, achievement_region])
+    world.multiworld.regions.extend([menu_region, progression_region, dish_region, setting_region, achievement_region, reroll_region])
     menu_region.connect(progression_region)
     progression_region.connect(dish_region)
     menu_region.connect(setting_region)
     menu_region.connect(achievement_region)
+    menu_region.connect(reroll_region)
 
     user_goal = world.options.goal.value
     progression_locs = []
@@ -51,6 +54,11 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
+        money_cap_enabled = world.options.money_cap_enabled.value
+        table_in_logic = (
+            world.options.appliance_unlocks.value and
+            "Unlock Dining Table" in world.item_name_to_id
+        )
 
         def run_suffix(run: int) -> str:
             if run == 0:
@@ -102,14 +110,18 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
                 grp_req = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
                 pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
+                cap_req = global_day // 15 if money_cap_enabled else 0
+                tbl_req = table_in_logic and global_day >= 15
 
-                def rule_factory(pl=prev_label, s=suff, req=req, spd=speed_req, grp=grp_req, pat=pat_req):
+                def rule_factory(pl=prev_label, s=suff, req=req, spd=speed_req, grp=grp_req, pat=pat_req, cap=cap_req, tbl=tbl_req):
                     return lambda state: (
                         state.can_reach(f"Franchise - Complete {pl}{s}", "Location", world.player)
                         and state.has("Day Lease", world.player, req)
                         and state.has("Speed Upgrade Player", world.player, spd)
                         and state.has("Reduce Group Size", world.player, grp)
                         and state.has("Global Patience Increase", world.player, pat)
+                        and state.has("Money Cap Increase", world.player, cap)
+                        and (state.has("Unlock Dining Table", world.player) if tbl else True)
                     )
 
                 e.access_rule = rule_factory()
@@ -133,15 +145,19 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
                 grp_req = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
                 pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
+                cap_req = global_day // 15 if money_cap_enabled else 0
+                tbl_req = table_in_logic and global_day >= 15
                 prev_suff = suff
 
-                def next_run_rule_factory(pl=prev_label, ps=prev_suff, req=req, spd=speed_req, grp=grp_req, pat=pat_req):
+                def next_run_rule_factory(pl=prev_label, ps=prev_suff, req=req, spd=speed_req, grp=grp_req, pat=pat_req, cap=cap_req, tbl=tbl_req):
                     return lambda state: (
                         state.can_reach(f"Franchise - Complete {pl}{ps}", "Location", world.player)
                         and state.has("Day Lease", world.player, req)
                         and state.has("Speed Upgrade Player", world.player, spd)
                         and state.has("Reduce Group Size", world.player, grp)
                         and state.has("Global Patience Increase", world.player, pat)
+                        and state.has("Money Cap Increase", world.player, cap)
+                        and (state.has("Unlock Dining Table", world.player) if tbl else True)
                     )
 
                 e.access_rule = next_run_rule_factory()
@@ -270,6 +286,11 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, math.ceil(required_days / patience_item_count)) if patience_item_count > 0 else 9999
+        money_cap_enabled = world.options.money_cap_enabled.value
+        table_in_logic = (
+            world.options.appliance_unlocks.value and
+            "Unlock Dining Table" in world.item_name_to_id
+        )
 
         # Create per-day regions
         day_regions = {}
@@ -296,15 +317,19 @@ def create_plateup_regions(world: "PlateUpWorld"):
             speed_required = min(int(world.options.player_speed_upgrade_count.value), (day - 1) // speed_interval)
             group_size_required = min(group_item_count, (day - 1) // group_interval) if group_item_count > 0 else 0
             patience_required = min(patience_item_count, (day - 1) // patience_interval) if patience_item_count > 0 else 0
+            day_money_cap_req = day // 15 if money_cap_enabled else 0
+            day_needs_table = table_in_logic and day >= 15
 
             # Access requires completion of previous day (location sits in source region => safe)
-            def entrance_rule_factory(d=day, req=leases_required, spd=speed_required, grp=group_size_required, pat=patience_required):
+            def entrance_rule_factory(d=day, req=leases_required, spd=speed_required, grp=group_size_required, pat=patience_required, cap=day_money_cap_req, tbl=day_needs_table):
                 return lambda state: (
                     state.can_reach(f"Complete Day {d-1}", "Location", world.player)
                     and state.has("Day Lease", world.player, req)
                     and state.has("Speed Upgrade Player", world.player, spd)
                     and state.has("Reduce Group Size", world.player, grp)
                     and state.has("Global Patience Increase", world.player, pat)
+                    and state.has("Money Cap Increase", world.player, cap)
+                    and (state.has("Unlock Dining Table", world.player) if tbl else True)
                 )
 
             e.access_rule = entrance_rule_factory()
@@ -477,5 +502,26 @@ def create_plateup_regions(world: "PlateUpWorld"):
                     continue
                 loc = PlateUpLocation(world.player, loc_name, loc_id, parent=achievement_region)
                 achievement_region.locations.append(loc)
+    except Exception:
+        pass
+
+    # Populate Reroll Checks region — each location gated by money cap level
+    try:
+        planned = getattr(world, '_location_name_to_id', {})
+        starting_cap = int(world.options.starting_money_cap.value)
+        cap_amount = int(world.options.money_cap_increase_amount.value)
+        cap_enabled = world.options.money_cap_enabled.value
+        for loc_name, loc_id in REROLL_LOCATIONS.items():
+            if loc_name not in planned:
+                continue
+            cost = int(loc_name.removeprefix("Reroll Cost "))
+            if cap_enabled and cap_amount > 0:
+                caps_needed = max(0, math.ceil((cost - starting_cap) / cap_amount))
+            else:
+                caps_needed = 0
+            loc = PlateUpLocation(world.player, loc_name, loc_id, parent=reroll_region)
+            if caps_needed > 0:
+                loc.access_rule = lambda state, n=caps_needed: state.has("Money Cap Increase", world.player, n)
+            reroll_region.locations.append(loc)
     except Exception:
         pass

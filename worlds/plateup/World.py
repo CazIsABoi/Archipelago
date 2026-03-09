@@ -13,6 +13,7 @@ from .Locations import (
     EXCLUDED_LOCATIONS,
     SETTING_LOCATIONS,
     ACHIEVEMENT_LOCATIONS,
+    REROLL_LOCATIONS,
     BASE_SETTING_NAME,
     OPTIONAL_SETTING_DISPLAY,
 )
@@ -39,6 +40,7 @@ class PlateUpWorld(World):
         **DISH_LOCATIONS,
         **SETTING_LOCATIONS,
         **ACHIEVEMENT_LOCATIONS,
+        **REROLL_LOCATIONS,
     }
 
     def __init__(self, *args, **kwargs):
@@ -202,6 +204,24 @@ class PlateUpWorld(World):
                         continue
                 locs[name] = loc_id
 
+        # Reroll cost checks: generate up to the max affordable reroll cost
+        if goal == Goal.option_franchise_x_times:
+            _reroll_total_days = 15 * int(self.options.franchise_count.value)
+        elif goal == Goal.option_reach_day_x_with_dishes:
+            _reroll_total_days = int(self.options.day_target.value)
+        else:
+            _reroll_total_days = int(self.options.day_count.value)
+        if self.options.money_cap_enabled.value:
+            _cap_items = _reroll_total_days // 15 + 1
+            _reroll_max = int(self.options.starting_money_cap.value) + int(self.options.money_cap_increase_amount.value) * _cap_items
+        else:
+            _reroll_max = 300
+        _reroll_max = min(_reroll_max, 300)
+        for loc_name, loc_id in REROLL_LOCATIONS.items():
+            cost = int(loc_name.removeprefix("Reroll Cost "))
+            if cost <= _reroll_max:
+                locs[loc_name] = loc_id
+
         return locs
 
     def validate_ids(self):
@@ -308,10 +328,10 @@ class PlateUpWorld(World):
         else:
             total_days = int(self.options.day_count.value)
 
-        # Place Money Cap Increase at ~1 per 10 days
-        money_cap_items = max(1, total_days // 10)
-        logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Auto Money Cap items by cadence: total_days={total_days}, placing={money_cap_items}")
-        if money_cap_items > 0:
+        # Place Money Cap Increase items: 1 per 15 days (logic requires 1 at day 15, 2 at day 30, etc.)
+        if self.options.money_cap_enabled.value:
+            money_cap_items = max(1, total_days // 15 + 1)
+            logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Money Cap items: total_days={total_days}, placing={money_cap_items}")
             item_pool.extend([
                 self.create_item("Money Cap Increase", classification=ItemClassification.progression)
                 for _ in range(money_cap_items)
@@ -373,7 +393,10 @@ class PlateUpWorld(World):
             patience_count = max(1, total_days // 20)
             customers_count = max(1, total_days // 20)
             grp_trap_count = max(1, total_days // 25)
-            new_items = (
+            # High-impact traps (low priority — added last so they only appear if space permits)
+            fire_count = max(1, total_days // 30)
+            slow_count = max(1, total_days // 30)
+            priority_items = (
                 [self.create_item("Patience Decrease", classification=ItemClassification.trap) for _ in range(patience_count)] +
                 [self.create_item("More Customers", classification=ItemClassification.trap) for _ in range(customers_count)] +
                 [self.create_item("Minimum Group Size Increase", classification=ItemClassification.trap) for _ in range(grp_trap_count)] +
@@ -383,8 +406,13 @@ class PlateUpWorld(World):
                 [self.create_item("Minimum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)] +
                 [self.create_item("Maximum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)]
             )
+            low_priority_items = (
+                [self.create_item("EVERYTHING IS ON FIRE", classification=ItemClassification.trap) for _ in range(fire_count)] +
+                [self.create_item("Super Slow", classification=ItemClassification.trap) for _ in range(slow_count)]
+            )
             remaining_cap = max(0, total_locations - len(item_pool))
-            item_pool.extend(new_items[:remaining_cap])
+            combined = priority_items + low_priority_items
+            item_pool.extend(combined[:remaining_cap])
         else:
             # When traps are disabled, still add up to 2 of each group size filler (1:1 balanced, no trap counterpart).
             grp_filler = (
@@ -424,12 +452,17 @@ class PlateUpWorld(World):
             f"Unlock {name}"
             for name in appliance_unlock_dictionary.values()
             if f"Unlock {name}" in self.item_name_to_id
+            and f"Unlock {name}" != "Unlock Dining Table"  # guaranteed below
         ] if self.options.appliance_unlocks.value else []
-        filler_queue = ["5 Coins", "Random Filler Appliance", "10 Coins", "Random Filler Appliance", "20 Coins", "Random Filler Appliance"]
+        # Guarantee "Unlock Dining Table" is in the pool when appliance unlocks are enabled,
+        # as it is a progression item required by logic at day 15.
+        if self.options.appliance_unlocks.value and "Unlock Dining Table" in self.item_name_to_id and remaining > 0:
+            item_pool.append(self.create_item("Unlock Dining Table", classification=ItemClassification.progression))
+            remaining -= 1
         if self.options.decoration_unlocks.value:
-            filler_queue = ["5 Coins", "Random Decoration Unlock", "10 Coins", "Mess Reduction", "20 Coins", "Random Decoration Unlock"]
+            filler_queue = ["Mess Reduction", "Random Decoration Unlock", "10 Coins", "Patience Increase", "Random Decoration Unlock", "Random Filler Appliance"]
         else:
-            filler_queue = ["5 Coins", "Random Filler Appliance", "10 Coins", "Mess Reduction", "20 Coins", "Random Filler Appliance"]
+            filler_queue = ["Mess Reduction", "Random Filler Appliance", "10 Coins", "Patience Increase", "Random Filler Appliance", "Random Filler Appliance"]
         unlock_index = 0
         for i in range(remaining):
             if i % 2 == 0:
@@ -537,7 +570,10 @@ class PlateUpWorld(World):
             "day_lease_interval",
             "free_starter_dishes",
             "starting_money_cap",
+            "money_cap_enabled",
+            "money_cap_increase_amount",
             "appliance_unlocks",
+            "appliance_unlock_grants_appliance",
             "decoration_unlocks",
             "trap_cards",
             "setting_checks",
@@ -584,6 +620,21 @@ class PlateUpWorld(World):
             options_dict["setting_locations_present"] = 0
         # Diagnostics
         options_dict["dish_unlocks"] = 0 if self.options.dish.value == 0 else 1
+        # Reroll check info for client
+        if self.options.money_cap_enabled.value:
+            if self.options.goal.value == Goal.option_franchise_x_times:
+                _rtd = 15 * int(self.options.franchise_count.value)
+            elif self.options.goal.value == Goal.option_reach_day_x_with_dishes:
+                _rtd = int(self.options.day_target.value)
+            else:
+                _rtd = int(self.options.day_count.value)
+            _cap_items = _rtd // 15 + 1
+            options_dict["reroll_max_cost"] = min(
+                int(self.options.starting_money_cap.value) + int(self.options.money_cap_increase_amount.value) * _cap_items,
+                300,
+            )
+        else:
+            options_dict["reroll_max_cost"] = 300
         return options_dict
 
     def get_filler_item_name(self):
