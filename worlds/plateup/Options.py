@@ -121,8 +121,6 @@ class StartingMoneyCap(Range):
     range_end = 40
     default = 20
 
-
-
 class MoneyCapIncreaseAmount(Range):
     """How much gold each Money Cap Increase item adds to the player's maximum coin cap."""
     display_name = "Money Cap Increase Amount"

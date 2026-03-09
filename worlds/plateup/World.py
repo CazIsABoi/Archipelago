@@ -212,8 +212,11 @@ class PlateUpWorld(World):
         else:
             _reroll_total_days = int(self.options.day_count.value)
         if self.options.money_cap_enabled.value:
-            _cap_items = _reroll_total_days // 15 + 1
-            _reroll_max = int(self.options.starting_money_cap.value) + int(self.options.money_cap_increase_amount.value) * _cap_items
+            _starting_cap = int(self.options.starting_money_cap.value)
+            _cap_amount = int(self.options.money_cap_increase_amount.value)
+            _min_for_60 = max(0, math.ceil((60 - _starting_cap) / _cap_amount))
+            _cap_items = max(_reroll_total_days // 15 + 1, _min_for_60)
+            _reroll_max = _starting_cap + _cap_amount * _cap_items
         else:
             _reroll_max = 300
         _reroll_max = min(_reroll_max, 300)
@@ -329,8 +332,12 @@ class PlateUpWorld(World):
             total_days = int(self.options.day_count.value)
 
         # Place Money Cap Increase items: 1 per 15 days (logic requires 1 at day 15, 2 at day 30, etc.)
+        # Always place enough to reach at least reroll cost 60.
         if self.options.money_cap_enabled.value:
-            money_cap_items = max(1, total_days // 15 + 1)
+            _starting_cap = int(self.options.starting_money_cap.value)
+            _cap_amount = int(self.options.money_cap_increase_amount.value)
+            _min_for_60 = max(0, math.ceil((60 - _starting_cap) / _cap_amount))
+            money_cap_items = max(max(1, total_days // 15 + 1), _min_for_60)
             logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Money Cap items: total_days={total_days}, placing={money_cap_items}")
             item_pool.extend([
                 self.create_item("Money Cap Increase", classification=ItemClassification.progression)
@@ -460,9 +467,9 @@ class PlateUpWorld(World):
             item_pool.append(self.create_item("Unlock Dining Table", classification=ItemClassification.progression))
             remaining -= 1
         if self.options.decoration_unlocks.value:
-            filler_queue = ["Mess Reduction", "Random Decoration Unlock", "10 Coins", "Patience Increase", "Random Decoration Unlock", "Random Filler Appliance"]
+            filler_queue = ["Less Customers", "Random Decoration Unlock", "10 Coins", "Minimum Group Size Decrease", "Random Decoration Unlock", "Maximum Group Size Decrease", "Mess Reduction", "Random Filler Appliance", "Patience Increase", "10 Coins"]
         else:
-            filler_queue = ["Mess Reduction", "Random Filler Appliance", "10 Coins", "Patience Increase", "Random Filler Appliance", "Random Filler Appliance"]
+            filler_queue = ["Less Customers", "Random Filler Appliance", "10 Coins", "Minimum Group Size Decrease", "Random Filler Appliance", "Maximum Group Size Decrease", "Mess Reduction", "Random Filler Appliance", "Patience Increase", "10 Coins"]
         unlock_index = 0
         for i in range(remaining):
             if i % 2 == 0:
@@ -628,9 +635,12 @@ class PlateUpWorld(World):
                 _rtd = int(self.options.day_target.value)
             else:
                 _rtd = int(self.options.day_count.value)
-            _cap_items = _rtd // 15 + 1
+            _sc = int(self.options.starting_money_cap.value)
+            _ca = int(self.options.money_cap_increase_amount.value)
+            _min_for_60 = max(0, math.ceil((60 - _sc) / _ca))
+            _cap_items = max(_rtd // 15 + 1, _min_for_60)
             options_dict["reroll_max_cost"] = min(
-                int(self.options.starting_money_cap.value) + int(self.options.money_cap_increase_amount.value) * _cap_items,
+                _sc + _ca * _cap_items,
                 300,
             )
         else:

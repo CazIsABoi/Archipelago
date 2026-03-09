@@ -172,5 +172,5 @@ ACHIEVEMENT_LOCATIONS: Dict[str, int] = {
 # Reroll cost checks (IDs 150001–150015, costs 10–150 in steps of 10)
 REROLL_LOCATIONS: Dict[str, int] = {
     f"Reroll Cost {cost}": 150000 + (cost // 10)
-    for cost in range(10, 310, 10)
+    for cost in range(20, 310, 10)
 }

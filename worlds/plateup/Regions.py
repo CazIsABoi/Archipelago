@@ -50,7 +50,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
         group_size_opt = int(world.options.starting_group_size.value)
         group_item_count = max(0, group_size_opt - 1)
-        group_interval = max(1, math.ceil(total_days / group_item_count)) if group_item_count > 0 else 9999
+        # Push group reductions to the second half of the run so the larger group persists longer
+        group_late_start = total_days // 2
+        group_interval = max(1, math.ceil(max(1, total_days - group_late_start) / group_item_count)) if group_item_count > 0 else 9999
 
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
@@ -108,7 +110,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 # Speed upgrades required based on global day progression
                 global_day = run * 15 + d
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
-                grp_req = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
+                grp_req = min(group_item_count, max(0, (global_day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                 pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
                 cap_req = global_day // 15 if money_cap_enabled else 0
                 tbl_req = table_in_logic and global_day >= 15
@@ -143,7 +145,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 req = leases_required_for(run + 1, 1)
                 global_day = (run + 1) * 15 + 1
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
-                grp_req = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
+                grp_req = min(group_item_count, max(0, (global_day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                 pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
                 cap_req = global_day // 15 if money_cap_enabled else 0
                 tbl_req = table_in_logic and global_day >= 15
@@ -282,7 +284,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
         group_size_opt = int(world.options.starting_group_size.value)
         group_item_count = max(0, group_size_opt - 1)
-        group_interval = max(1, math.ceil(required_days / group_item_count)) if group_item_count > 0 else 9999
+        # Push group reductions to the second half of the run so the larger group persists longer
+        group_late_start = required_days // 2
+        group_interval = max(1, math.ceil(max(1, required_days - group_late_start) / group_item_count)) if group_item_count > 0 else 9999
 
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, math.ceil(required_days / patience_item_count)) if patience_item_count > 0 else 9999
@@ -315,7 +319,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
             leases_required = (day - 1) // interval
             # Speed upgrades required to ENTER day d: floor((d-1)/speed_interval), capped at configured count
             speed_required = min(int(world.options.player_speed_upgrade_count.value), (day - 1) // speed_interval)
-            group_size_required = min(group_item_count, (day - 1) // group_interval) if group_item_count > 0 else 0
+            group_size_required = min(group_item_count, max(0, (day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
             patience_required = min(patience_item_count, (day - 1) // patience_interval) if patience_item_count > 0 else 0
             day_money_cap_req = day // 15 if money_cap_enabled else 0
             day_needs_table = table_in_logic and day >= 15

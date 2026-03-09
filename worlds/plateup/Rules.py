@@ -73,7 +73,8 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
     speed_interval = max(1, math.ceil(total_progress_days / speed_slots))
     group_size_opt = int(world.options.starting_group_size.value)
     group_item_count = max(0, group_size_opt - 1)
-    group_interval = max(1, math.ceil(total_progress_days / group_item_count)) if group_item_count > 0 else 9999
+    group_late_start = total_progress_days // 2
+    group_interval = max(1, math.ceil(max(1, total_progress_days - group_late_start) / group_item_count)) if group_item_count > 0 else 9999
     patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
     patience_interval = max(1, math.ceil(total_progress_days / patience_item_count)) if patience_item_count > 0 else 9999
     money_cap_enabled = world.options.money_cap_enabled.value
@@ -103,7 +104,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                 if day_number:
                     leases_required = max(0, (day_number - 1) // interval)
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
-                    group_required = min(group_item_count, (day_number - 1) // group_interval) if group_item_count > 0 else 0
+                    group_required = min(group_item_count, max(0, (day_number - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                     patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
                     money_cap_required = day_number // 15 if money_cap_enabled else 0
                     add_rule(
@@ -134,7 +135,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                 if day_number:
                     leases_required = max(0, (day_number - 1) // interval)
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
-                    group_required = min(group_item_count, (day_number - 1) // group_interval) if group_item_count > 0 else 0
+                    group_required = min(group_item_count, max(0, (day_number - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                     patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
                     money_cap_required = day_number // 15 if money_cap_enabled else 0
                     add_rule(
@@ -308,7 +309,8 @@ def apply_rules(world: "PlateUpWorld"):
         speed_interval = max(1, _math.ceil(total_days / speed_slots))
         group_size_opt = int(world.options.starting_group_size.value)
         group_item_count = max(0, group_size_opt - 1)
-        group_interval = max(1, _math.ceil(total_days / group_item_count)) if group_item_count > 0 else 9999
+        group_late_start = total_days // 2
+        group_interval = max(1, _math.ceil(max(1, total_days - group_late_start) / group_item_count)) if group_item_count > 0 else 9999
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, _math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
         money_cap_enabled = world.options.money_cap_enabled.value
@@ -336,7 +338,7 @@ def apply_rules(world: "PlateUpWorld"):
                 global_day = run * 15 + d
                 leases_required = (global_day - 1) // interval
                 speed_required = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
-                group_required = min(group_item_count, (global_day - 1) // group_interval) if group_item_count > 0 else 0
+                group_required = min(group_item_count, max(0, (global_day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                 patience_required = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
                 money_cap_required = global_day // 15 if money_cap_enabled else 0
                 table_needed = table_in_logic and global_day >= 15
