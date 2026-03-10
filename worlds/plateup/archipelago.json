@@ -1,10 +1,6 @@
 {
-  "name": "PlateUp",
-  "game": "plateup",
-  "description": "Archipelago world integration for PlateUp. Randomizes dishes, day checks, and franchise progression.",
-  "author": "PlateUp Archipelago Maintainers",
-  "homepage": "https://archipelago.gg/",
-  "supports": {
-    "archipelago": ">=0.6.0"
-  }
+    "game": "plateup",
+    "authors": ["CazIsABoi"],
+    "world_version": "0.2.5",
+    "minimum_ap_version": "0.6.4"
 }

@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 .vscode/
 test/
+build_apworld.py
