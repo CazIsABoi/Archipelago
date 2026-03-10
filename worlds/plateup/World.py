@@ -225,6 +225,11 @@ class PlateUpWorld(World):
             if cost <= _reroll_max:
                 locs[loc_name] = loc_id
 
+        # "Lose a Run" is always created by create_regions for every goal
+        lose_id = FRANCHISE_LOCATION_DICT.get("Lose a Run") or DAY_LOCATION_DICT.get("Lose a Run")
+        if lose_id is not None:
+            locs["Lose a Run"] = lose_id
+
         return locs
 
     def validate_ids(self):
@@ -550,17 +555,6 @@ class PlateUpWorld(World):
 
         self.multiworld.completion_condition[self.player] = plateup_completion
         apply_rules(self)
-
-        final_locations = [loc for loc in self.multiworld.get_locations() if loc.player == self.player]
-        current_items = [item for item in self.multiworld.itempool if item.player == self.player]
-        missing = len(final_locations) - len(current_items)
-        if missing > 0:
-            logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Item pool is short by {missing} items. Adding appliance placeholders.")
-            for i in range(missing):
-                if i % 2 == 0:
-                    self.multiworld.itempool.append(self.create_item("Random Appliance", classification=ItemClassification.useful))
-                else:
-                    self.multiworld.itempool.append(self.create_item("Random Filler Appliance", classification=ItemClassification.filler))
 
     def fill_slot_data(self):
         """Return slot data for this player."""
