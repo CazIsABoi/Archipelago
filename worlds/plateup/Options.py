@@ -3,7 +3,10 @@ from Options import Choice, OptionList, PerGameCommonOptions, Range, Toggle
 from .Locations import OPTIONAL_SETTING_NAMES
 
 class Goal(Choice):
-    """Set the goal for completion."""
+    """Choose the win condition for your PlateUp run.
+    franchise_x_times: Franchise your restaurant the required number of times (see franchise_count).
+    complete_x_days: Survive and complete a set number of in-game days (see day_count).
+    reach_day_x_with_dishes: Reach a specific global day while having a minimum number of dishes active (see day_target and dish_goal_count)."""
     display_name = "Goal"
     option_franchise_x_times = 0
     option_complete_x_days = 1
@@ -11,118 +14,156 @@ class Goal(Choice):
     default = 0
 
 class FranchiseCount(Range):
-    """Select how many franchises are required for completion.(Only used if Goal=complete_x_franchises)"""
+    """How many times you must franchise your restaurant to trigger completion.
+    Each franchise resets your kitchen but lets you keep a number of appliances (see appliances_kept).
+    Only used when goal is set to franchise_x_times."""
     display_name = "Required Franchise Count"
     range_start = 1
     range_end = 50
     default = 1
 
 class DayCount(Range):
-    """Select how many days are required for completion. (Only used if Goal=complete_x_days)"""
+    """How many in-game days you must complete to trigger completion.
+    Each day is a full restaurant service. Higher values create longer runs with more locations and items.
+    Only used when goal is set to complete_x_days."""
     display_name = "Required Day Count"
     range_start = 10
     range_end = 1000
     default = 10
 
 class DayTarget(Range):
-    """Target day to reach for the 'reach_day_x_with_dishes' goal. The player must survive to this global day with the required number of dishes active. (Only used if Goal=reach_day_x_with_dishes)"""
+    """The global day number you must survive to in order to trigger completion.
+    You must reach this day with at least dish_goal_count dishes actively unlocked.
+    Only used when goal is set to reach_day_x_with_dishes."""
     display_name = "Day Target"
     range_start = 15
     range_end = 100
     default = 15
 
 class DishGoalCount(Range):
-    """How many dishes must be active when the player reaches the target day. Must not exceed the 'dish' option value. (Only used if Goal=reach_day_x_with_dishes)"""
+    """How many dish unlocks must be in your possession when you reach the target day.
+    Must not exceed the dish count option — if it does, generation will raise an error.
+    Only used when goal is set to reach_day_x_with_dishes."""
     display_name = "Required Dishes at Target Day"
     range_start = 1
     range_end = 17
     default = 3
 
 class DayLeasesEnabled(Toggle):
-    """Enable Day Lease progression items. When disabled, no Day Lease items are placed and days are never gated by leases."""
+    """Enable Day Lease progression items in the pool.
+    When enabled, Day Lease items gate progress: you must have received enough leases before you can play the next block of days (see day_lease_interval for block size).
+    When disabled, no lease items are placed and no days are gated — useful if you prefer a free-flowing run without hard progression locks."""
     display_name = "Enable Day Leases"
     default = 1
 
 
 class DayLeaseInterval(Range):
-    """How many in-game days between each required Day Lease (min 1). Only relevant when day_leases_enabled is on."""
+    """How many days pass between each required Day Lease.
+    For example, a value of 5 means you need 1 lease to play days 1–5, 2 leases for days 6–10, and so on.
+    Lower values create more frequent progression gates; higher values result in larger, less frequent gates.
+    Only relevant when day_leases_enabled is on."""
     display_name = "Day Lease Interval"
     range_start = 1
     range_end = 30
     default = 5
 
 class DishCount(Range):
-    """How many dishes get dedicated checks and unlocks. 0 keeps every dish unlocked and disables dish checks."""
-    display_name = "Starting Dish Count"
+    """How many dishes are randomized into the item pool as unlock items, and how many dish-day location checks are generated.
+    Each selected dish contributes up to 15 day-based checks (one per day of a run).
+    Setting this to 0 leaves all dishes permanently unlocked and disables all dish-related checks."""
+    display_name = "Dish Count"
     range_start = 0
     range_end = 17
     default = 1
 
 
 class FreeStarterDishes(Range):
-    """How many dishes the player starts with already unlocked when playing with locked dishes (dish > 0). Defaults to 1 (the classic single free starter). Set to 0 to require unlocking every dish, or higher to begin with more dishes pre-unlocked."""
+    """How many of the selected dishes the player starts with already unlocked, at no cost.
+    The starting dish(es) are weighted toward easier options (Salad, Pizza, Coffee, Breakfast).
+    Set to 0 to require receiving every dish unlock from the multiworld.
+    Set equal to dish_count to start with all dishes already unlocked (making dish unlocks purely cosmetic checks).
+    Only relevant when dish count is greater than 0."""
     display_name = "Free Starter Dishes"
     range_start = 0
     range_end = 17
     default = 1
 
 class ItemsKept(Range):
-    """How many appliances the player keeps each run."""
-    display_name = "Starting Appliance Count"
+    """How many appliances you are allowed to keep when franchising.
+    Higher values make each franchise run easier since you carry over more of your kitchen setup.
+    This is sent directly to the client and enforced in-game."""
+    display_name = "Appliances Kept Each Run"
     range_start = 1
     range_end = 5
     default = 1
 
 class DeathLink(Toggle):
-    """Enable death link mode, affecting all linked players."""
+    """Enable DeathLink, which ties your fate to other DeathLink-enabled players in the multiworld.
+    When your run ends (e.g. a day fails), it triggers a death for all linked players, and vice versa.
+    The exact effect of a received DeathLink is controlled by death_link_behavior."""
     display_name = "Death Link"
     default = 0
 
 class DeathLinkBehavior(Choice):
-    """Choose what happens when DeathLink triggers."""
+    """What happens when a DeathLink signal is received from another player.
+    reset_run: immediately end your current run and start fresh.
+    reset_to_last_star: roll back your restaurant to the state it was in at your last earned star.
+    Only relevant when death_link is enabled."""
     display_name = "Death Link Behavior"
     option_reset_run = 0
     option_reset_to_last_star = 1
     default = 0
 
 class PlayerSpeedUpgradeCount(Range):
-    """How many Player Speed Upgrade items to place (0-10)."""
+    """How many Player Speed Upgrade items to place in the pool.
+    These increase your chef's movement speed, making it easier to serve customers in time.
+    They are distributed as progression items evenly across the run, so later days require more of them.
+    Set to 0 to remove player speed upgrades entirely."""
     display_name = "Player Speed Upgrade Count"
     range_start = 0
     range_end = 10
     default = 5
 
 class ApplianceSpeedUpgradeCount(Range):
-    """How many Appliance Speed Upgrade items to place (0-10)."""
+    """How many Appliance Speed Upgrade items to place in the pool.
+    These increase the processing speed of your kitchen appliances (cooking, chopping, cleaning).
+    Whether this produces one grouped item or three separate items depends on appliance_speed_mode.
+    Set to 0 to remove appliance speed upgrades entirely."""
     display_name = "Appliance Speed Upgrade Count"
     range_start = 0
     range_end = 10
     default = 5
 
 class ApplianceSpeedMode(Choice):
-    """
-    Choose whether all Speed Upgrade Appliances are "grouped" (single item),
-    or "separate" (Cook, Chop, Clean).
-    """
+    """Controls how Appliance Speed Upgrades are split in the item pool.
+    grouped: all appliance speed upgrades are a single generic item that boosts all appliance speeds.
+    separate: speed upgrades are split into three distinct items — Speed Upgrade Cook, Speed Upgrade Chop, and Speed Upgrade Clean — giving finer control over which stations improve first."""
     display_name = "Appliance Speed Upgrade Mode"
     option_grouped = 0
     option_separate = 1
     default = 0
 
 class MoneyCapEnabled(Toggle):
-    """Enable the money cap mechanic. When disabled, players have no gold limit and no Money Cap Increase items are placed."""
+    """Enable the gold cap mechanic, which limits how much gold you can hold at once.
+    When enabled, Money Cap Increase items are placed in the pool as progression items that raise your cap.
+    When disabled, you have no gold limit and no Money Cap Increase items are placed — also disables reroll cost checks that depend on the cap."""
     display_name = "Enable Money Cap"
     default = 1
 
 class StartingMoneyCap(Range):
-    """Starting total money cap (in gold). You cannot hold more than this amount at any time until increased by items."""
+    """The gold cap you begin with at the start of the run.
+    You cannot hold more gold than this at any time until you receive Money Cap Increase items.
+    Lower values create more pressure in early days; higher values give more starting freedom.
+    Only relevant when money_cap_enabled is on."""
     display_name = "Starting Money Cap"
     range_start = 10
     range_end = 40
     default = 20
 
 class MoneyCapIncreaseAmount(Range):
-    """How much gold each Money Cap Increase item adds to the player's maximum coin cap."""
+    """How much gold each Money Cap Increase item permanently adds to your maximum gold cap.
+    Higher values mean fewer items are needed to reach a comfortable cap, but each individual item is more impactful.
+    Only relevant when money_cap_enabled is on."""
     display_name = "Money Cap Increase Amount"
     range_start = 5
     range_end = 100
@@ -130,44 +171,55 @@ class MoneyCapIncreaseAmount(Range):
 
 
 class MoneyCapActivation(Choice):
-    """When a Money Cap Increase item takes effect.
-    instant: the cap rises as soon as the item is received, even mid-day.
-    start_of_day: the cap rises at the beginning of the next cooking day (when the player starts cooking)."""
-    display_name = "Money Cap Activation"
+    """Controls when a received Money Cap Increase item takes effect.
+    instant: your gold cap rises the moment the item is received, even during an active service day.
+    start_of_day: the cap increase is held until the beginning of your next cooking day, when the timer starts.
+    Only relevant when money_cap_enabled is on."""
+    display_name = "Money Cap Activation Method"
     option_instant = 0
     option_start_of_day = 1
     default = 0
 
 
 class ApplianceUnlocks(Toggle):
-    """Enable specific appliance unlock items in the pool. When disabled, only Random Appliance items are used."""
+    """Enable named appliance unlock items in the pool (e.g. 'Unlock Hob', 'Unlock Belt').
+    When enabled, finding one of these items adds that specific appliance to your future shop offerings, and optionally grants it immediately (see appliance_unlock_grants_appliance).
+    When disabled, only generic Random Appliance items are used, which grant a random appliance from the full pool."""
     display_name = "Enable Appliance Unlocks"
     default = 1
 
 
 class ApplianceUnlockGrantsAppliance(Toggle):
-    """When enabled, finding an appliance unlock item also immediately grants the appliance for use. When disabled, it only adds the appliance to future shop pools."""
+    """Controls whether receiving a named appliance unlock item also immediately places that appliance in your kitchen.
+    When enabled, the item acts as both an unlock and a direct grant — you get the appliance right away.
+    When disabled, the item only adds the appliance to your available shop pool for future purchase; you still need to buy it.
+    Only relevant when appliance_unlocks is enabled."""
     display_name = "Appliance Unlock Grants Appliance"
     default = 1
 
 
 class DecorationUnlocks(Toggle):
-    """Enable Random Decoration Unlock filler items in the pool."""
+    """Enable Random Decoration Unlock items as filler in the pool.
+    These items are cosmetic-only and unlock random decorations (wallpapers, floors, etc.) for use in your restaurant.
+    Disabling this replaces decoration unlock slots in the filler queue with Random Filler Appliances."""
     display_name = "Enable Decoration Unlocks"
     default = 1
 
 
 class TrapCards(Toggle):
-    """Enable trap cards that add Random Customer Card items to the pool."""
+    """Enable trap items in the pool that impose negative effects when received.
+    Traps replace filler items and include effects like extra customers, patience decreases, fires, and more.
+    The proportion of filler replaced by traps is controlled by trap_chance.
+    When disabled, no trap items are placed regardless of trap_chance."""
     display_name = "Enable Trap Cards"
     default = 1
 
 
 class TrapChance(Range):
-    """Chance of traps in the item pool.
-    Traps will only replace filler items such as parts and resources.
-    0: No traps will be present.
-    100: Every filler item will be a trap.
+    """The percentage of remaining filler slots that will be replaced by trap items.
+    At 0, the legacy auto-scaling trap behavior is used (traps scale with run length).
+    At 100, every available filler slot becomes a trap.
+    Traps are chosen randomly from: Random Customer Card, Patience Decrease, More Customers, Minimum/Maximum Group Size Increase, EVERYTHING IS ON FIRE, and Super Slow.
     Only used when trap_cards is enabled."""
     display_name = "Trap Chance"
     range_start = 0
@@ -176,15 +228,20 @@ class TrapChance(Range):
 
 
 class SettingChecks(Toggle):
-    """Enable combined day checks for Country, City, and Alpine settings (cosmetic variants)."""
+    """Enable location checks tied to in-game restaurant settings (Country, City, Alpine, and optionally others).
+    Each enabled setting generates up to 15 day-based checks, one per day of a run played in that setting.
+    Settings are cosmetic map variants and do not affect gameplay balance, but playing them becomes required to clear their checks.
+    Configure which settings are included using setting_check_mode and setting_extra_checks."""
     display_name = "Enable Setting Checks"
     default = 0
 
 
 class SettingCheckMode(Choice):
-    """Choose whether base settings, extra settings, or both should generate checks. Only relevant if setting_checks is enabled. 
-    base_only generates checks for the 3 base settings (Country, City, Alpine). base_and_extras generates checks for those plus any extra settings selected in the option below. 
-    extras_only generates checks only for the extra settings selected in the option below."""
+    """Controls which settings generate day-based location checks.
+    base_only: generates checks only for the 3 base settings (Country, City, Alpine).
+    base_and_extras: generates checks for the base 3 settings plus any extras listed in setting_extra_checks.
+    extras_only: generates checks only for the extras listed in setting_extra_checks, skipping the base settings.
+    Only relevant when setting_checks is enabled."""
     display_name = "Setting Check Mode"
     option_base_only = 0
     option_base_and_extras = 1
@@ -193,18 +250,23 @@ class SettingCheckMode(Choice):
 
 
 class SettingExtraChecks(OptionList):
-    """Optional settings (beyond Country/City/Alpine) that should receive day checks.
-
-    Use YAML flow-list syntax, e.g.
-    `setting_extra_checks: [autumn, witch, turbo]`. Slugs are lowercase; copy/paste
-    any of: autumn, banquet, turbo, witch."""
+    """A list of additional settings beyond the base three (Country, City, Alpine) that should generate day-based checks.
+    Only settings listed here will be included when setting_check_mode is extras_only or base_and_extras.
+    Use YAML flow-list syntax, e.g. setting_extra_checks: [autumn, witch, turbo].
+    Valid slugs (lowercase): autumn, banquet, turbo, witch."""
     display_name = "Additional Setting Checks"
     default = ()
     _allowed = tuple(OPTIONAL_SETTING_NAMES)
 
 
 class StartingCards(Choice):
-    """Choose which difficulty of Customer Cards the player starts with. The client will deal these cards at the start of a run. Pair with starting_cards_amount to set how many are dealt."""
+    """Which difficulty tier of Customer Cards are automatically dealt at the start of every run.
+    Customer Cards impose penalty rules on customers (e.g. impatience, larger groups).
+    none: no starting cards, normal difficulty.
+    easy: one or more easy cards are dealt each run.
+    hard: one or more hard cards are dealt each run.
+    both: a mix of easy and hard cards are dealt each run.
+    The number of cards dealt is set by starting_cards_amount. An equal number of Remove Card items are added to the pool to let you undo them."""
     display_name = "Starting Cards"
     option_none = 0
     option_easy = 1
@@ -214,7 +276,9 @@ class StartingCards(Choice):
 
 
 class StartingCardsAmount(Range):
-    """How many starting Customer Cards are dealt at the start of a run. Requires starting_cards to not be none. Also determines how many Remove Card items are placed in the pool."""
+    """How many Customer Cards are dealt at the start of each run.
+    This also determines how many Remove Card progression items are placed in the pool — one per starting card — so you can gradually cancel out the penalty cards as you receive items.
+    Only relevant when starting_cards is not none."""
     display_name = "Starting Cards Amount"
     range_start = 1
     range_end = 8
@@ -222,7 +286,10 @@ class StartingCardsAmount(Range):
 
 
 class StartingGroupSize(Range):
-    """Set the starting customer group size. Higher values make the game significantly harder. When enabled (>0), places (starting_group_size - 1) 'Reduce Group Size' progression items in the pool, distributed evenly across the run like speed upgrades. Set to 0 to disable."""
+    """The customer group size your restaurant starts with at the beginning of the run.
+    Larger groups are significantly harder to serve in time. In the base game the group size starts at 1.
+    When set above 1, (starting_group_size - 1) Reduce Group Size progression items are placed in the pool and distributed evenly across the run, gradually bringing the group size back down to 1.
+    Set to 0 to disable this mechanic entirely and use the normal starting group size."""
     display_name = "Starting Group Size"
     range_start = 0
     range_end = 8
@@ -230,22 +297,45 @@ class StartingGroupSize(Range):
 
 
 class GlobalPatienceEnabled(Toggle):
-    """Enable Global Patience Increase progression items. When enabled, places 'global_patience_upgrade_count' items that are required to reach later days, distributed evenly across the run like speed upgrades."""
+    """Enable Global Patience Increase as a progression mechanic.
+    When enabled, customer patience starts reduced and Global Patience Increase items are required to progress to later days.
+    The items are distributed evenly across the run, so you need more of them to reach later days.
+    When disabled, patience behaves normally and no patience upgrade items are placed."""
     display_name = "Enable Global Patience Upgrades"
     default = 0
 
 
 class GlobalPatienceUpgradeCount(Range):
-    """How many Global Patience Increase items to place (1-10). Only relevant when global_patience_enabled is on."""
+    """How many Global Patience Increase progression items to place in the pool.
+    These are gated evenly across the run — more are required before you can reach later days.
+    Higher counts create more patience-gated progression milestones throughout the run.
+    Only relevant when global_patience_enabled is on."""
     display_name = "Global Patience Upgrade Count"
     range_start = 1
     range_end = 10
     default = 5
 
 
+class GlobalPatienceStartingDebuff(Range):
+    """How much patience is subtracted from all customers at the start of the run.
+    This is the baseline penalty before any Global Patience Increase items are received.
+    At 0, customers start with normal patience (no debuff).
+    Values around -40 are where the early game starts to feel very punishing — customers leave quickly and mistakes are costly.
+    Values below -40 approach impossible territory: at -70 or lower, early days are effectively unwinnable without significant kitchen optimisation and luck.
+    The range extends to -100 for completeness, but practical play recommends staying above -50.
+    Each Global Patience Increase item received will partially restore patience toward the normal level.
+    Only relevant when global_patience_enabled is on."""
+    display_name = "Global Patience Starting Debuff"
+    range_start = -100
+    range_end = 0
+    default = -50
+
+
 class PatienceFillerPercent(Range):
-    """What percentage of remaining filler slots to fill with Patience Increase items.
-    Set to 0 to let Patience Increase appear naturally through the filler queue rotation."""
+    """What percentage of the remaining filler capacity to fill with Patience Increase items.
+    Patience Increase gives a temporary buff to customer patience for a day, making service easier.
+    At 0, Patience Increase items still appear naturally through the standard filler queue rotation.
+    The budget is consumed in order across all filler percent options, so the total can never overflow."""
     display_name = "Patience Filler Percent"
     range_start = 0
     range_end = 100
@@ -253,8 +343,10 @@ class PatienceFillerPercent(Range):
 
 
 class CustomerFillerPercent(Range):
-    """What percentage of remaining filler slots to fill with Less Customers items.
-    Set to 0 to let Less Customers appear naturally through the filler queue rotation."""
+    """What percentage of the remaining filler capacity to fill with Less Customers items.
+    Less Customers temporarily reduces the number of customers served in a day, giving some breathing room.
+    At 0, Less Customers items still appear naturally through the standard filler queue rotation.
+    The budget is consumed in order across all filler percent options, so the total can never overflow."""
     display_name = "Customer Filler Percent"
     range_start = 0
     range_end = 100
@@ -262,9 +354,11 @@ class CustomerFillerPercent(Range):
 
 
 class GroupSizeFillerPercent(Range):
-    """What percentage of remaining filler slots to fill with Group Size Decrease items.
-    That percentage is split evenly between Minimum and Maximum Group Size Decrease.
-    Set to 0 to let Group Size Decrease items appear naturally through the filler queue rotation."""
+    """What percentage of the remaining filler capacity to fill with Group Size Decrease items.
+    The allocated slots are split evenly between Minimum Group Size Decrease and Maximum Group Size Decrease.
+    These items reduce the minimum and maximum number of customers in each arriving group, making service more manageable.
+    At 0, Group Size Decrease items still appear naturally through the standard filler queue rotation.
+    The budget is consumed in order across all filler percent options, so the total can never overflow."""
     display_name = "Group Size Filler Percent"
     range_start = 0
     range_end = 100
@@ -272,8 +366,10 @@ class GroupSizeFillerPercent(Range):
 
 
 class MessReductionPercent(Range):
-    """What percentage of remaining filler slots to fill with Mess Reduction items.
-    Set to 0 to let Mess Reduction appear naturally through the filler queue rotation."""
+    """What percentage of the remaining filler capacity to fill with Mess Reduction items.
+    Mess Reduction decreases the amount of mess generated on a given day, reducing the cleaning burden.
+    At 0, Mess Reduction items still appear naturally through the standard filler queue rotation.
+    The budget is consumed in order across all filler percent options, so the total can never overflow."""
     display_name = "Mess Reduction Percent"
     range_start = 0
     range_end = 100
@@ -281,8 +377,12 @@ class MessReductionPercent(Range):
 
 
 class AchievementChecks(Toggle):
-    """Enable achievement location checks. Adds in-game achievements as checks. Some are
-    restricted by goal (Overtime) or appliance unlocks (Charcoal Factory, Safety Last)."""
+    """Enable in-game achievements as location checks.
+    When enabled, completing achievements sends checks to the multiworld. There are 17 achievement checks in total.
+    Some achievements are only available under specific conditions:
+    - Overtime achievements (Day 5, 10, 15) require a day-based goal long enough to reach days 20, 25, and 30 respectively.
+    - Charcoal Factory and Safety Last require appliance_unlocks to be enabled.
+    - New Chef Plus requires reaching day 15."""
     display_name = "Enable Achievement Checks"
     default = 1
 
@@ -325,4 +425,5 @@ class PlateUpOptions(PerGameCommonOptions):
     starting_group_size: StartingGroupSize
     global_patience_enabled: GlobalPatienceEnabled
     global_patience_upgrade_count: GlobalPatienceUpgradeCount
+    global_patience_starting_debuff: GlobalPatienceStartingDebuff
     achievement_checks: AchievementChecks

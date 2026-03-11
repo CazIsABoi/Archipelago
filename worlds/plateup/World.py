@@ -450,10 +450,16 @@ class PlateUpWorld(World):
             remaining_cap = max(0, total_locations - len(item_pool))
             item_pool.extend(grp_filler[:remaining_cap])
 
+        # Guarantee "Unlock Dining Table" is in the pool before filler percentages consume all capacity.
+        # It is a progression item required by logic at day 15 and must not be squeezed out.
+        _filler_capacity = max(0, total_locations - len(item_pool))
+        if self.options.appliance_unlocks.value and "Unlock Dining Table" in self.item_name_to_id and _filler_capacity > 0:
+            item_pool.append(self.create_item("Unlock Dining Table", classification=ItemClassification.progression))
+            _filler_capacity -= 1
+
         # Gameplay filler percentages: allocate a share of remaining filler capacity to each type.
         # Each percentage is calculated against the capacity at this point, then consumed in order,
         # so the total can never exceed available slots regardless of what values are chosen.
-        _filler_capacity = max(0, total_locations - len(item_pool))
         _patience_pct = int(self.options.patience_filler_percent.value)
         _customer_pct = int(self.options.customer_filler_percent.value)
         _group_pct = int(self.options.group_size_filler_percent.value)
@@ -504,18 +510,14 @@ class PlateUpWorld(World):
             remaining -= filler_from_remaining
             filler_needed -= filler_from_remaining
 
-        # Fill remaining slots with specific appliance unlocks first, then generic random ones
+        # Fill remaining slots with specific appliance unlocks first, then generic random ones.
+        # "Unlock Dining Table" is already guaranteed above, so it is excluded from the queue.
         unlock_queue = [
             f"Unlock {name}"
             for name in appliance_unlock_dictionary.values()
             if f"Unlock {name}" in self.item_name_to_id
-            and f"Unlock {name}" != "Unlock Dining Table"  # guaranteed below
+            and f"Unlock {name}" != "Unlock Dining Table"
         ] if self.options.appliance_unlocks.value else []
-        # Guarantee "Unlock Dining Table" is in the pool when appliance unlocks are enabled,
-        # as it is a progression item required by logic at day 15.
-        if self.options.appliance_unlocks.value and "Unlock Dining Table" in self.item_name_to_id and remaining > 0:
-            item_pool.append(self.create_item("Unlock Dining Table", classification=ItemClassification.progression))
-            remaining -= 1
         # Build filler queue, excluding any item types that were placed explicitly above.
         _skip_in_queue: set[str] = set()
         if _patience_count > 0:
@@ -647,6 +649,7 @@ class PlateUpWorld(World):
             "starting_group_size",
             "global_patience_enabled",
             "global_patience_upgrade_count",
+            "global_patience_starting_debuff",
             "achievement_checks",
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
