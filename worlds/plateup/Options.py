@@ -85,16 +85,6 @@ class DeathLinkBehavior(Choice):
     option_reset_to_last_star = 1
     default = 0
 
-class ApplianceSpeedMode(Choice):
-    """
-    Choose whether all Speed Upgrade Appliances are "grouped" (single item),
-    or "separate" (Cook, Chop, Clean).
-    """
-    display_name = "Appliance Speed Upgrade Mode"
-    option_grouped = 0
-    option_separate = 1
-    default = 0
-
 class PlayerSpeedUpgradeCount(Range):
     """How many Player Speed Upgrade items to place (0-10)."""
     display_name = "Player Speed Upgrade Count"
@@ -108,6 +98,16 @@ class ApplianceSpeedUpgradeCount(Range):
     range_start = 0
     range_end = 10
     default = 5
+
+class ApplianceSpeedMode(Choice):
+    """
+    Choose whether all Speed Upgrade Appliances are "grouped" (single item),
+    or "separate" (Cook, Chop, Clean).
+    """
+    display_name = "Appliance Speed Upgrade Mode"
+    option_grouped = 0
+    option_separate = 1
+    default = 0
 
 class MoneyCapEnabled(Toggle):
     """Enable the money cap mechanic. When disabled, players have no gold limit and no Money Cap Increase items are placed."""
@@ -127,6 +127,16 @@ class MoneyCapIncreaseAmount(Range):
     range_start = 5
     range_end = 100
     default = 20
+
+
+class MoneyCapActivation(Choice):
+    """When a Money Cap Increase item takes effect.
+    instant: the cap rises as soon as the item is received, even mid-day.
+    start_of_day: the cap rises at the beginning of the next cooking day (when the player starts cooking)."""
+    display_name = "Money Cap Activation"
+    option_instant = 0
+    option_start_of_day = 1
+    default = 0
 
 
 class ApplianceUnlocks(Toggle):
@@ -151,6 +161,18 @@ class TrapCards(Toggle):
     """Enable trap cards that add Random Customer Card items to the pool."""
     display_name = "Enable Trap Cards"
     default = 1
+
+
+class TrapChance(Range):
+    """Chance of traps in the item pool.
+    Traps will only replace filler items such as parts and resources.
+    0: No traps will be present.
+    100: Every filler item will be a trap.
+    Only used when trap_cards is enabled."""
+    display_name = "Trap Chance"
+    range_start = 0
+    range_end = 100
+    default = 0
 
 
 class SettingChecks(Toggle):
@@ -221,6 +243,43 @@ class GlobalPatienceUpgradeCount(Range):
     default = 5
 
 
+class PatienceFillerPercent(Range):
+    """What percentage of remaining filler slots to fill with Patience Increase items.
+    Set to 0 to let Patience Increase appear naturally through the filler queue rotation."""
+    display_name = "Patience Filler Percent"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class CustomerFillerPercent(Range):
+    """What percentage of remaining filler slots to fill with Less Customers items.
+    Set to 0 to let Less Customers appear naturally through the filler queue rotation."""
+    display_name = "Customer Filler Percent"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class GroupSizeFillerPercent(Range):
+    """What percentage of remaining filler slots to fill with Group Size Decrease items.
+    That percentage is split evenly between Minimum and Maximum Group Size Decrease.
+    Set to 0 to let Group Size Decrease items appear naturally through the filler queue rotation."""
+    display_name = "Group Size Filler Percent"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class MessReductionPercent(Range):
+    """What percentage of remaining filler slots to fill with Mess Reduction items.
+    Set to 0 to let Mess Reduction appear naturally through the filler queue rotation."""
+    display_name = "Mess Reduction Percent"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
 class AchievementChecks(Toggle):
     """Enable achievement location checks. Adds in-game achievements as checks. Some are
     restricted by goal (Overtime) or appliance unlocks (Charcoal Factory, Safety Last)."""
@@ -240,18 +299,24 @@ class PlateUpOptions(PerGameCommonOptions):
     appliances_kept: ItemsKept
     death_link: DeathLink
     death_link_behavior: DeathLinkBehavior
-    appliance_speed_mode: ApplianceSpeedMode
     day_leases_enabled: DayLeasesEnabled
     day_lease_interval: DayLeaseInterval
     player_speed_upgrade_count: PlayerSpeedUpgradeCount
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
+    appliance_speed_mode: ApplianceSpeedMode
     money_cap_enabled: MoneyCapEnabled
     starting_money_cap: StartingMoneyCap
     money_cap_increase_amount: MoneyCapIncreaseAmount
+    money_cap_activation: MoneyCapActivation
     appliance_unlocks: ApplianceUnlocks
     appliance_unlock_grants_appliance: ApplianceUnlockGrantsAppliance
     decoration_unlocks: DecorationUnlocks
     trap_cards: TrapCards
+    trap_chance: TrapChance
+    patience_filler_percent: PatienceFillerPercent
+    customer_filler_percent: CustomerFillerPercent
+    group_size_filler_percent: GroupSizeFillerPercent
+    mess_reduction_percent: MessReductionPercent
     setting_checks: SettingChecks
     setting_check_mode: SettingCheckMode
     setting_extra_checks: SettingExtraChecks

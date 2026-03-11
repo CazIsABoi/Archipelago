@@ -3,7 +3,7 @@ from worlds.AutoWorld import WebWorld
 
 
 class PlateUpWebWorld(WebWorld):
-    game="plateup"
+    game="PlateUp"
 
     # You can choose between dirt, grass, grassFlowers, ice, jungle, ocean, partyTime, and stone.
     theme="dirt"

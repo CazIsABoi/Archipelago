@@ -27,7 +27,7 @@ from .Rules import (
 
 
 class PlateUpWorld(World):
-    game = "plateup"
+    game = "PlateUp"
     web = Web_World.PlateUpWebWorld()
     options_dataclass = PlateUpOptions
     options: PlateUpOptions
@@ -390,41 +390,57 @@ class PlateUpWorld(World):
             for _ in range(shop_size_count)
         ])
 
+        trap_chance = int(self.options.trap_chance.value)
         if self.options.trap_cards.value:
-            # Add traps at ~10% of total locations, minimum 3
-            remaining_capacity = max(0, total_locations - len(item_pool))
-            desired_traps = max(3, total_days // 10)  # scale with run length
-            trap_to_add = min(desired_traps, remaining_capacity)
-            item_pool.extend([
-                self.create_item("Random Customer Card", classification=ItemClassification.trap)
-                for _ in range(trap_to_add)
-            ])
-            # Additional traps and their filler counterparts, scaled with run length.
-            # Patience/Customer pairs have no strict 1:1 requirement.
-            # Min/Max Group Size pairs are strictly 1:1 (equal traps and filler).
-            patience_count = max(1, total_days // 20)
-            customers_count = max(1, total_days // 20)
-            grp_trap_count = max(1, total_days // 25)
-            # High-impact traps (low priority — added last so they only appear if space permits)
-            fire_count = max(1, total_days // 30)
-            slow_count = max(1, total_days // 30)
-            priority_items = (
-                [self.create_item("Patience Decrease", classification=ItemClassification.trap) for _ in range(patience_count)] +
-                [self.create_item("More Customers", classification=ItemClassification.trap) for _ in range(customers_count)] +
-                [self.create_item("Minimum Group Size Increase", classification=ItemClassification.trap) for _ in range(grp_trap_count)] +
-                [self.create_item("Maximum Group Size Increase", classification=ItemClassification.trap) for _ in range(grp_trap_count)] +
-                [self.create_item("Patience Increase", classification=ItemClassification.filler) for _ in range(patience_count)] +
-                [self.create_item("Less Customers", classification=ItemClassification.filler) for _ in range(customers_count)] +
-                [self.create_item("Minimum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)] +
-                [self.create_item("Maximum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)]
-            )
-            low_priority_items = (
-                [self.create_item("EVERYTHING IS ON FIRE", classification=ItemClassification.trap) for _ in range(fire_count)] +
-                [self.create_item("Super Slow", classification=ItemClassification.trap) for _ in range(slow_count)]
-            )
-            remaining_cap = max(0, total_locations - len(item_pool))
-            combined = priority_items + low_priority_items
-            item_pool.extend(combined[:remaining_cap])
+            if trap_chance > 0:
+                # Percentage-based trap placement: fill trap_chance% of remaining filler slots with traps.
+                remaining_filler = max(0, total_locations - len(item_pool))
+                trap_count = round(remaining_filler * trap_chance / 100)
+                _trap_pool = [
+                    "Random Customer Card",
+                    "Patience Decrease",
+                    "More Customers",
+                    "Minimum Group Size Increase",
+                    "Maximum Group Size Increase",
+                    "EVERYTHING IS ON FIRE",
+                    "Super Slow",
+                ]
+                for _ in range(trap_count):
+                    trap_name = self.random.choice(_trap_pool)
+                    item_pool.append(self.create_item(trap_name, classification=ItemClassification.trap))
+            else:
+                # Auto-scaling behavior (legacy): traps scaled to run length.
+                remaining_capacity = max(0, total_locations - len(item_pool))
+                desired_traps = max(3, total_days // 10)  # scale with run length
+                trap_to_add = min(desired_traps, remaining_capacity)
+                item_pool.extend([
+                    self.create_item("Random Customer Card", classification=ItemClassification.trap)
+                    for _ in range(trap_to_add)
+                ])
+                # Additional traps and their filler counterparts, scaled with run length.
+                patience_count = max(1, total_days // 20)
+                customers_count = max(1, total_days // 20)
+                grp_trap_count = max(1, total_days // 25)
+                # High-impact traps (low priority — added last so they only appear if space permits)
+                fire_count = max(1, total_days // 30)
+                slow_count = max(1, total_days // 30)
+                priority_items = (
+                    [self.create_item("Patience Decrease", classification=ItemClassification.trap) for _ in range(patience_count)] +
+                    [self.create_item("More Customers", classification=ItemClassification.trap) for _ in range(customers_count)] +
+                    [self.create_item("Minimum Group Size Increase", classification=ItemClassification.trap) for _ in range(grp_trap_count)] +
+                    [self.create_item("Maximum Group Size Increase", classification=ItemClassification.trap) for _ in range(grp_trap_count)] +
+                    [self.create_item("Patience Increase", classification=ItemClassification.filler) for _ in range(patience_count)] +
+                    [self.create_item("Less Customers", classification=ItemClassification.filler) for _ in range(customers_count)] +
+                    [self.create_item("Minimum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)] +
+                    [self.create_item("Maximum Group Size Decrease", classification=ItemClassification.filler) for _ in range(grp_trap_count)]
+                )
+                low_priority_items = (
+                    [self.create_item("EVERYTHING IS ON FIRE", classification=ItemClassification.trap) for _ in range(fire_count)] +
+                    [self.create_item("Super Slow", classification=ItemClassification.trap) for _ in range(slow_count)]
+                )
+                remaining_cap = max(0, total_locations - len(item_pool))
+                combined = priority_items + low_priority_items
+                item_pool.extend(combined[:remaining_cap])
         else:
             # When traps are disabled, still add up to 2 of each group size filler (1:1 balanced, no trap counterpart).
             grp_filler = (
@@ -433,6 +449,35 @@ class PlateUpWorld(World):
             )
             remaining_cap = max(0, total_locations - len(item_pool))
             item_pool.extend(grp_filler[:remaining_cap])
+
+        # Gameplay filler percentages: allocate a share of remaining filler capacity to each type.
+        # Each percentage is calculated against the capacity at this point, then consumed in order,
+        # so the total can never exceed available slots regardless of what values are chosen.
+        _filler_capacity = max(0, total_locations - len(item_pool))
+        _patience_pct = int(self.options.patience_filler_percent.value)
+        _customer_pct = int(self.options.customer_filler_percent.value)
+        _group_pct = int(self.options.group_size_filler_percent.value)
+        _mess_pct = int(self.options.mess_reduction_percent.value)
+        _budget = _filler_capacity
+        _patience_count = min(round(_filler_capacity * _patience_pct / 100), _budget)
+        _budget -= _patience_count
+        _customer_count = min(round(_filler_capacity * _customer_pct / 100), _budget)
+        _budget -= _customer_count
+        # Group size: percentage split evenly between min and max (each gets half, rounded down)
+        _group_total = min(round(_filler_capacity * _group_pct / 100), _budget)
+        _group_each = _group_total // 2
+        _budget -= _group_each * 2
+        _mess_count = min(round(_filler_capacity * _mess_pct / 100), _budget)
+        _budget -= _mess_count
+        _explicit_filler = (
+            [self.create_item("Patience Increase", classification=ItemClassification.filler) for _ in range(_patience_count)] +
+            [self.create_item("Less Customers", classification=ItemClassification.filler) for _ in range(_customer_count)] +
+            [self.create_item("Minimum Group Size Decrease", classification=ItemClassification.filler) for _ in range(_group_each)] +
+            [self.create_item("Maximum Group Size Decrease", classification=ItemClassification.filler) for _ in range(_group_each)] +
+            [self.create_item("Mess Reduction", classification=ItemClassification.filler) for _ in range(_mess_count)]
+        )
+        if _explicit_filler:
+            item_pool.extend(_explicit_filler)
 
         # Top up remaining capacity with a mix of normal and filler appliances,
         # ensuring there are enough filler-classified items to cover excluded locations.
@@ -471,10 +516,21 @@ class PlateUpWorld(World):
         if self.options.appliance_unlocks.value and "Unlock Dining Table" in self.item_name_to_id and remaining > 0:
             item_pool.append(self.create_item("Unlock Dining Table", classification=ItemClassification.progression))
             remaining -= 1
+        # Build filler queue, excluding any item types that were placed explicitly above.
+        _skip_in_queue: set[str] = set()
+        if _patience_count > 0:
+            _skip_in_queue.add("Patience Increase")
+        if _customer_count > 0:
+            _skip_in_queue.add("Less Customers")
+        if _group_each > 0:
+            _skip_in_queue.update({"Minimum Group Size Decrease", "Maximum Group Size Decrease"})
+        if _mess_count > 0:
+            _skip_in_queue.add("Mess Reduction")
         if self.options.decoration_unlocks.value:
-            filler_queue = ["Less Customers", "Random Decoration Unlock", "10 Coins", "Minimum Group Size Decrease", "Random Decoration Unlock", "Maximum Group Size Decrease", "Mess Reduction", "Random Filler Appliance", "Patience Increase", "10 Coins"]
+            _base_queue = ["Less Customers", "Random Decoration Unlock", "10 Coins", "Minimum Group Size Decrease", "Random Decoration Unlock", "Maximum Group Size Decrease", "Mess Reduction", "Random Filler Appliance", "Patience Increase", "10 Coins"]
         else:
-            filler_queue = ["Less Customers", "Random Filler Appliance", "10 Coins", "Minimum Group Size Decrease", "Random Filler Appliance", "Maximum Group Size Decrease", "Mess Reduction", "Random Filler Appliance", "Patience Increase", "10 Coins"]
+            _base_queue = ["Less Customers", "Random Filler Appliance", "10 Coins", "Minimum Group Size Decrease", "Random Filler Appliance", "Maximum Group Size Decrease", "Mess Reduction", "Random Filler Appliance", "Patience Increase", "10 Coins"]
+        filler_queue = [item for item in _base_queue if item not in _skip_in_queue] or ["10 Coins", "Random Filler Appliance"]
         unlock_index = 0
         for i in range(remaining):
             if i % 2 == 0:
@@ -573,10 +629,16 @@ class PlateUpWorld(World):
             "starting_money_cap",
             "money_cap_enabled",
             "money_cap_increase_amount",
+            "money_cap_activation",
             "appliance_unlocks",
             "appliance_unlock_grants_appliance",
             "decoration_unlocks",
             "trap_cards",
+            "trap_chance",
+            "patience_filler_percent",
+            "customer_filler_percent",
+            "group_size_filler_percent",
+            "mess_reduction_percent",
             "setting_checks",
             "setting_check_mode",
             "setting_extra_checks",

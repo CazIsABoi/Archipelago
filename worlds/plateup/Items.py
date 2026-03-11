@@ -1,7 +1,7 @@
 from BaseClasses import Item, ItemClassification
 
 class PlateUpItem(Item):
-    game = "plateup"
+    game = "PlateUp"
     
     def __init__(self, name, classification, code, player):
         super().__init__(name, classification, code, player)
