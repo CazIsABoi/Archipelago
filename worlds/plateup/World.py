@@ -274,8 +274,8 @@ class PlateUpWorld(World):
         return PlateUpItem(name, classification, item_id, self.player)
 
     def create_items(self):
-        self.set_selected_dishes()
         """Create the item pool for all planned locations."""
+        self.set_selected_dishes()
         # Base planned locations used by region creation
         planned_locations = self.generate_location_table()
         base_locations = len(planned_locations)
@@ -651,6 +651,8 @@ class PlateUpWorld(World):
             "global_patience_upgrade_count",
             "global_patience_starting_debuff",
             "achievement_checks",
+            "player_speed_upgrade_count",
+            "appliance_speed_upgrade_count",
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
         if self.options.dish.value == 0:
@@ -664,8 +666,10 @@ class PlateUpWorld(World):
             # Diagnostics: count of planned dish day locations included
             planned = getattr(self, "_location_name_to_id", {})
             count = 0
+            _goal_val = self.options.goal.value
+            _dish_day_max = self.options.day_target.value if _goal_val == 2 else 15
             for dish in options_dict["selected_dishes"]:
-                for day in range(1, 16):
+                for day in range(1, _dish_day_max + 1):
                     name = f"{dish} - Day {day}"
                     if name in planned:
                         count += 1

@@ -80,7 +80,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
     money_cap_enabled = world.options.money_cap_enabled.value
     table_in_logic = (
         world.options.appliance_unlocks.value and
-        "Unlock Table (Large)" in world.item_name_to_id
+        "Unlock Dining Table" in world.item_name_to_id
     )
 
     for i in range(len(dish_order) - 1):
