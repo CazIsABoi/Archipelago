@@ -10,7 +10,7 @@ For more information about yaml options and mod mechanics, refer to the full gui
 [PlateUp! Archipelago Mod Options & Features Guide](https://docs.google.com/document/d/1H_T82UsZbHI4CbvfHWnud8xZqhXH5XWc_sZkax1I8YY/edit?tab=t.0)
 
 ## Installation
-[Video Guide](https://youtu.be/W5X0hPBpipE)
+[Video Guide]([https://youtu.be/W5X0hPBpipE](https://youtu.be/AE5aN4s3TiM))
 
 ### Steam Workshop (Recommended)
 
