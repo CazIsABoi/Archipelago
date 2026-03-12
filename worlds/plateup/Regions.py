@@ -57,6 +57,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
         money_cap_enabled = world.options.money_cap_enabled.value
+        money_cap_item_count = int(world.options.money_cap_increase_count.value) if money_cap_enabled else 0
         table_in_logic = (
             world.options.appliance_unlocks.value and
             "Unlock Dining Table" in world.item_name_to_id
@@ -112,7 +113,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
                 grp_req = min(group_item_count, max(0, (global_day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                 pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
-                cap_req = global_day // 15 if money_cap_enabled else 0
+                cap_req = min(global_day // 15, money_cap_item_count) if money_cap_enabled else 0
                 tbl_req = table_in_logic and global_day >= 15
 
                 def rule_factory(pl=prev_label, s=suff, req=req, spd=speed_req, grp=grp_req, pat=pat_req, cap=cap_req, tbl=tbl_req):
@@ -147,7 +148,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 speed_req = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
                 grp_req = min(group_item_count, max(0, (global_day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                 pat_req = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
-                cap_req = global_day // 15 if money_cap_enabled else 0
+                cap_req = min(global_day // 15, money_cap_item_count) if money_cap_enabled else 0
                 tbl_req = table_in_logic and global_day >= 15
                 prev_suff = suff
 
@@ -291,6 +292,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, math.ceil(required_days / patience_item_count)) if patience_item_count > 0 else 9999
         money_cap_enabled = world.options.money_cap_enabled.value
+        money_cap_item_count = int(world.options.money_cap_increase_count.value) if money_cap_enabled else 0
         table_in_logic = (
             world.options.appliance_unlocks.value and
             "Unlock Dining Table" in world.item_name_to_id
@@ -321,7 +323,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
             speed_required = min(int(world.options.player_speed_upgrade_count.value), (day - 1) // speed_interval)
             group_size_required = min(group_item_count, max(0, (day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
             patience_required = min(patience_item_count, (day - 1) // patience_interval) if patience_item_count > 0 else 0
-            day_money_cap_req = day // 15 if money_cap_enabled else 0
+            day_money_cap_req = min(day // 15, money_cap_item_count) if money_cap_enabled else 0
             day_needs_table = table_in_logic and day >= 15
 
             # Access requires completion of previous day (location sits in source region => safe)
@@ -499,7 +501,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
     # Populate Achievement Checks region
     try:
-        if getattr(world.options, 'achievement_checks', None) and world.options.achievement_checks.value:
+        if getattr(world.options, 'achievement_check_mode', None) is not None and world.options.achievement_check_mode.value != 2:
             planned = getattr(world, '_location_name_to_id', {})
             for loc_name, loc_id in ACHIEVEMENT_LOCATIONS.items():
                 if loc_name not in planned:

@@ -165,6 +165,15 @@ ITEMS = {
     "More Customers": (20004, ItemClassification.trap),
     "Minimum Group Size Increase": (20005, ItemClassification.trap),
     "Maximum Group Size Increase": (20006, ItemClassification.trap),
+    "Random Dish Extra": (20007, ItemClassification.trap),
+    "Random Side Dish": (20008, ItemClassification.trap),
+    "Tip Jar Drain": (20009, ItemClassification.trap),
+    "Good Advertisement": (20010, ItemClassification.trap),
+    "Card Swap": (20011, ItemClassification.trap),
+    #endregion
+    #region useful items
+    "Reroll Token": (30, ItemClassification.filler),
+    "Extra Life": (31, ItemClassification.useful),
     #endregion
 }
 

@@ -17,7 +17,7 @@ from .Locations import (
     BASE_SETTING_NAME,
     OPTIONAL_SETTING_DISPLAY,
 )
-from .Options import PlateUpOptions, Goal, SettingCheckMode
+from .Options import PlateUpOptions, Goal, SettingCheckMode, AchievementCheckMode
 from .Rules import (
     filter_selected_dishes,
     filter_selected_settings,
@@ -186,8 +186,10 @@ class PlateUpWorld(World):
                     if loc_id:
                         locs[loc_name] = loc_id
 
-        if self.options.achievement_checks.value:
+        _ach_mode = self.options.achievement_check_mode.value
+        if _ach_mode != AchievementCheckMode.option_none:
             _overtime_thresholds = {"Overtime Day 5": 20, "Overtime Day 10": 25, "Overtime Day 15": 30}
+            _appliance_gated = {"Charcoal Factory", "Safety Last"}
             effective_days = (
                 self.options.day_target.value if goal == 2 else
                 self.options.day_count.value if goal == 1 else
@@ -202,6 +204,9 @@ class PlateUpWorld(World):
                     # Requires reaching day 15; exclude if day goal can't hit 15
                     if goal == 1 and self.options.day_count.value < 15:
                         continue
+                elif _ach_mode == AchievementCheckMode.option_earned_only and name in _appliance_gated:
+                    if not self.options.appliance_unlocks.value:
+                        continue
                 locs[name] = loc_id
 
         # Reroll cost checks: generate up to the max affordable reroll cost
@@ -214,8 +219,7 @@ class PlateUpWorld(World):
         if self.options.money_cap_enabled.value:
             _starting_cap = int(self.options.starting_money_cap.value)
             _cap_amount = int(self.options.money_cap_increase_amount.value)
-            _min_for_60 = max(0, math.ceil((60 - _starting_cap) / _cap_amount))
-            _cap_items = max(_reroll_total_days // 15 + 1, _min_for_60)
+            _cap_items = int(self.options.money_cap_increase_count.value)
             _reroll_max = _starting_cap + _cap_amount * _cap_items
         else:
             _reroll_max = 300
@@ -339,11 +343,8 @@ class PlateUpWorld(World):
         # Place Money Cap Increase items: 1 per 15 days (logic requires 1 at day 15, 2 at day 30, etc.)
         # Always place enough to reach at least reroll cost 60.
         if self.options.money_cap_enabled.value:
-            _starting_cap = int(self.options.starting_money_cap.value)
-            _cap_amount = int(self.options.money_cap_increase_amount.value)
-            _min_for_60 = max(0, math.ceil((60 - _starting_cap) / _cap_amount))
-            money_cap_items = max(max(1, total_days // 15 + 1), _min_for_60)
-            logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Money Cap items: total_days={total_days}, placing={money_cap_items}")
+            money_cap_items = int(self.options.money_cap_increase_count.value)
+            logging.debug(f"[Player {self.multiworld.player_name[self.player]}] Money Cap items: placing={money_cap_items}")
             item_pool.extend([
                 self.create_item("Money Cap Increase", classification=ItemClassification.progression)
                 for _ in range(money_cap_items)
@@ -358,9 +359,13 @@ class PlateUpWorld(World):
                 for _ in range(lease_count)
             ])
 
-        # Add Remove Card items if starting cards are enabled
+        # Add Remove Card items: one per random starting card, plus one per explicitly listed extra card
+        remove_card_count = 0
         if self.options.starting_cards.value != 0:
-            remove_card_count = int(self.options.starting_cards_amount.value)
+            remove_card_count += int(self.options.starting_cards_amount.value)
+        extra_cards = list(self.options.extra_starting_cards.value)
+        remove_card_count += len(extra_cards)
+        if remove_card_count > 0:
             item_pool.extend([
                 self.create_item("Remove Card", classification=ItemClassification.progression)
                 for _ in range(remove_card_count)
@@ -396,17 +401,30 @@ class PlateUpWorld(World):
                 # Percentage-based trap placement: fill trap_chance% of remaining filler slots with traps.
                 remaining_filler = max(0, total_locations - len(item_pool))
                 trap_count = round(remaining_filler * trap_chance / 100)
-                _trap_pool = [
-                    "Random Customer Card",
-                    "Patience Decrease",
-                    "More Customers",
-                    "Minimum Group Size Increase",
-                    "Maximum Group Size Increase",
-                    "EVERYTHING IS ON FIRE",
-                    "Super Slow",
+                _trap_key_to_name = {
+                    "everything_is_on_fire": "EVERYTHING IS ON FIRE",
+                    "super_slow": "Super Slow",
+                    "random_customer_card": "Random Customer Card",
+                    "patience_decrease": "Patience Decrease",
+                    "more_customers": "More Customers",
+                    "min_group_size_increase": "Minimum Group Size Increase",
+                    "max_group_size_increase": "Maximum Group Size Increase",
+                    "random_dish_extra": "Random Dish Extra",
+                    "random_side_dish": "Random Side Dish",
+                    "tip_jar_drain": "Tip Jar Drain",
+                    "good_advertisement": "Good Advertisement",
+                    "card_swap": "Card Swap",
+                }
+                _trap_weights = self.options.trap_weights.value
+                _weighted_trap_pool = [
+                    item_name
+                    for key, item_name in _trap_key_to_name.items()
+                    for _ in range(max(0, _trap_weights.get(key, 1)))
                 ]
+                if not _weighted_trap_pool:
+                    _weighted_trap_pool = list(_trap_key_to_name.values())
                 for _ in range(trap_count):
-                    trap_name = self.random.choice(_trap_pool)
+                    trap_name = self.random.choice(_weighted_trap_pool)
                     item_pool.append(self.create_item(trap_name, classification=ItemClassification.trap))
             else:
                 # Auto-scaling behavior (legacy): traps scaled to run length.
@@ -464,6 +482,7 @@ class PlateUpWorld(World):
         _customer_pct = int(self.options.customer_filler_percent.value)
         _group_pct = int(self.options.group_size_filler_percent.value)
         _mess_pct = int(self.options.mess_reduction_percent.value)
+        _coin_pct = int(self.options.coin_filler_percent.value)
         _budget = _filler_capacity
         _patience_count = min(round(_filler_capacity * _patience_pct / 100), _budget)
         _budget -= _patience_count
@@ -475,12 +494,15 @@ class PlateUpWorld(World):
         _budget -= _group_each * 2
         _mess_count = min(round(_filler_capacity * _mess_pct / 100), _budget)
         _budget -= _mess_count
+        _coin_count = min(round(_filler_capacity * _coin_pct / 100), _budget)
+        _budget -= _coin_count
         _explicit_filler = (
             [self.create_item("Patience Increase", classification=ItemClassification.filler) for _ in range(_patience_count)] +
             [self.create_item("Less Customers", classification=ItemClassification.filler) for _ in range(_customer_count)] +
             [self.create_item("Minimum Group Size Decrease", classification=ItemClassification.filler) for _ in range(_group_each)] +
             [self.create_item("Maximum Group Size Decrease", classification=ItemClassification.filler) for _ in range(_group_each)] +
-            [self.create_item("Mess Reduction", classification=ItemClassification.filler) for _ in range(_mess_count)]
+            [self.create_item("Mess Reduction", classification=ItemClassification.filler) for _ in range(_mess_count)] +
+            [self.create_item("10 Coins", classification=ItemClassification.filler) for _ in range(_coin_count)]
         )
         if _explicit_filler:
             item_pool.extend(_explicit_filler)
@@ -512,12 +534,27 @@ class PlateUpWorld(World):
 
         # Fill remaining slots with specific appliance unlocks first, then generic random ones.
         # "Unlock Dining Table" is already guaranteed above, so it is excluded from the queue.
-        unlock_queue = [
-            f"Unlock {name}"
-            for name in appliance_unlock_dictionary.values()
-            if f"Unlock {name}" in self.item_name_to_id
-            and f"Unlock {name}" != "Unlock Dining Table"
-        ] if self.options.appliance_unlocks.value else []
+        if self.options.appliance_unlocks.value:
+            _all_unlock_queue = [
+                f"Unlock {name}"
+                for name in appliance_unlock_dictionary.values()
+                if f"Unlock {name}" in self.item_name_to_id
+                and f"Unlock {name}" != "Unlock Dining Table"
+            ]
+            _pool_size = int(self.options.appliance_unlock_pool_size.value)
+            _prog_unlocks = [
+                f"Unlock {name}" for name in APPLIANCE_PROGRESSION
+                if f"Unlock {name}" in self.item_name_to_id
+                and f"Unlock {name}" != "Unlock Dining Table"
+            ]
+            _filler_unlocks = [u for u in _all_unlock_queue if u not in _prog_unlocks]
+            _needed_filler = max(0, _pool_size - len(_prog_unlocks))
+            _sampled_filler = self.random.sample(_filler_unlocks, min(_needed_filler, len(_filler_unlocks)))
+            unlock_queue = _prog_unlocks + _sampled_filler
+            self._appliance_unlock_pool = {u[len("Unlock "):] for u in unlock_queue}
+        else:
+            unlock_queue = []
+            self._appliance_unlock_pool = set()
         # Build filler queue, excluding any item types that were placed explicitly above.
         _skip_in_queue: set[str] = set()
         if _patience_count > 0:
@@ -528,6 +565,8 @@ class PlateUpWorld(World):
             _skip_in_queue.update({"Minimum Group Size Decrease", "Maximum Group Size Decrease"})
         if _mess_count > 0:
             _skip_in_queue.add("Mess Reduction")
+        if _coin_count > 0:
+            _skip_in_queue.add("10 Coins")
         if self.options.decoration_unlocks.value:
             _base_queue = ["Less Customers", "Random Decoration Unlock", "10 Coins", "Minimum Group Size Decrease", "Random Decoration Unlock", "Maximum Group Size Decrease", "Mess Reduction", "Random Filler Appliance", "Patience Increase", "10 Coins"]
         else:
@@ -641,19 +680,27 @@ class PlateUpWorld(World):
             "customer_filler_percent",
             "group_size_filler_percent",
             "mess_reduction_percent",
+            "coin_filler_percent",
             "setting_checks",
             "setting_check_mode",
             "setting_extra_checks",
             "starting_cards",
             "starting_cards_amount",
             "starting_group_size",
+            "extra_starting_cards",
             "global_patience_enabled",
             "global_patience_upgrade_count",
             "global_patience_starting_debuff",
-            "achievement_checks",
+            "achievement_check_mode",
+            "money_cap_increase_count",
+            "appliance_unlock_pool_size",
+            "unlocked_appliances_in_shop",
             "player_speed_upgrade_count",
             "appliance_speed_upgrade_count",
         )
+        all_appliance_names = set(appliance_unlock_dictionary.values())
+        pool = getattr(self, "_appliance_unlock_pool", set())
+        options_dict["unlocked_appliances"] = sorted(all_appliance_names - pool)
         options_dict["items_kept"] = self.options.appliances_kept.value
         if self.options.dish.value == 0:
             options_dict["selected_dishes"] = []

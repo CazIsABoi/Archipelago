@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from Options import Choice, OptionList, PerGameCommonOptions, Range, Toggle
+from Options import Choice, OptionCounter, OptionGroup, OptionList, PerGameCommonOptions, Range, Toggle
 from .Locations import OPTIONAL_SETTING_NAMES
 
 class Goal(Choice):
@@ -170,6 +170,17 @@ class MoneyCapIncreaseAmount(Range):
     default = 20
 
 
+class MoneyCapIncreaseCount(Range):
+    """How many Money Cap Increase items to place in the item pool.
+    Each item permanently raises your gold cap by money_cap_increase_amount.
+    Higher values spread cap increases more gradually across the run; lower values mean fewer but larger milestones.
+    Only relevant when money_cap_enabled is on."""
+    display_name = "Money Cap Increase Count"
+    range_start = 1
+    range_end = 20
+    default = 5
+
+
 class MoneyCapActivation(Choice):
     """Controls when a received Money Cap Increase item takes effect.
     instant: your gold cap rises the moment the item is received, even during an active service day.
@@ -187,6 +198,17 @@ class ApplianceUnlocks(Toggle):
     When disabled, only generic Random Appliance items are used, which grant a random appliance from the full pool."""
     display_name = "Enable Appliance Unlocks"
     default = 1
+
+
+class ApplianceUnlockPoolSize(Range):
+    """How many named appliance unlock items to include in the pool when appliance_unlocks is enabled.
+    The pool always prioritises progression-critical appliances (Hob, Counter, Sink, Plate Stack, Blueprint Cabinet, Research Desk) first, then randomly samples from the remaining appliances up to the chosen size.
+    Lower values create a tighter, more focused pool; higher values allow more variety.
+    Only relevant when appliance_unlocks is enabled."""
+    display_name = "Appliance Unlock Pool Size"
+    range_start = 10
+    range_end = 93
+    default = 30
 
 
 class ApplianceUnlockGrantsAppliance(Toggle):
@@ -211,7 +233,7 @@ class TrapCards(Toggle):
     Traps replace filler items and include effects like extra customers, patience decreases, fires, and more.
     The proportion of filler replaced by traps is controlled by trap_chance.
     When disabled, no trap items are placed regardless of trap_chance."""
-    display_name = "Enable Trap Cards"
+    display_name = "Enable Traps"
     default = 1
 
 
@@ -219,12 +241,35 @@ class TrapChance(Range):
     """The percentage of remaining filler slots that will be replaced by trap items.
     At 0, the legacy auto-scaling trap behavior is used (traps scale with run length).
     At 100, every available filler slot becomes a trap.
-    Traps are chosen randomly from: Random Customer Card, Patience Decrease, More Customers, Minimum/Maximum Group Size Increase, EVERYTHING IS ON FIRE, and Super Slow.
+    Which traps appear and their relative frequency is controlled by trap_weights.
     Only used when trap_cards is enabled."""
     display_name = "Trap Chance"
     range_start = 0
     range_end = 100
     default = 0
+
+
+_TRAP_WEIGHT_KEYS = [
+    "everything_is_on_fire", "super_slow", "random_customer_card",
+    "patience_decrease", "more_customers", "min_group_size_increase", "max_group_size_increase",
+    "random_dish_extra", "random_side_dish",
+    "tip_jar_drain", "good_advertisement", "card_swap",
+]
+
+
+class TrapWeights(OptionCounter):
+    """Relative weights for each trap type. Higher values make that trap more likely to appear.
+    Set a trap's weight to 0 to exclude it entirely from the pool.
+    Has no effect when trap_cards is disabled or trap_chance is 0 (legacy auto-scaling mode).
+    random_dish_extra: adds a random dish extra requirement (e.g. extra napkins, candles) for the day.
+    random_side_dish: adds a random side dish requirement for the day.
+    tip_jar_drain: empties your tip jar for the day.
+    good_advertisement: floods the restaurant with extra customers.
+    card_swap: swaps one of your active customer cards for a random different one."""
+    display_name = "Trap Weights"
+    valid_keys = _TRAP_WEIGHT_KEYS
+    min = 0
+    default = {k: 1 for k in _TRAP_WEIGHT_KEYS}
 
 
 class SettingChecks(Toggle):
@@ -283,6 +328,34 @@ class StartingCardsAmount(Range):
     range_start = 1
     range_end = 8
     default = 3
+
+
+EXTRA_CARD_VALID_KEYS = (
+    "individual_dining", "medium_groups", "large_groups", "flexible_dining",
+    "morning_rush", "lunch_rush", "dinner_rush", "herd_mentality",
+    "advertising", "advertising_2", "all_you_can_eat", "double_helpings",
+    "blindfolded_chefs", "closing_time", "discounts", "empathy",
+    "health_and_safety", "high_expectations", "high_quality", "high_standards",
+    "instant_service", "leisurely_eating", "personalized_waiting", "picky_eaters",
+    "relaxed_atmosphere", "sedate_atmosphere", "simplicity", "splash_zone",
+    "victorian_standards",
+)
+
+
+class ExtraStartingCards(OptionList):
+    """A list of specific customer cards to deal at the start of every run, on top of any random starting_cards.
+    For each card listed, one Remove Card progression item is added to the pool so you can cancel it.
+    Use lowercase_underscore slugs, e.g. [high_expectations, large_groups].
+    Valid slugs: individual_dining, medium_groups, large_groups, flexible_dining,
+    morning_rush, lunch_rush, dinner_rush, herd_mentality, advertising, advertising_2,
+    all_you_can_eat, double_helpings, blindfolded_chefs, closing_time, discounts, empathy,
+    health_and_safety, high_expectations, high_quality, high_standards, instant_service,
+    leisurely_eating, personalized_waiting, picky_eaters, relaxed_atmosphere,
+    sedate_atmosphere, simplicity, splash_zone, victorian_standards."""
+    display_name = "Extra Starting Cards"
+    valid_keys = EXTRA_CARD_VALID_KEYS
+    valid_keys_casefold = True
+    default = []
 
 
 class StartingGroupSize(Range):
@@ -376,15 +449,35 @@ class MessReductionPercent(Range):
     default = 0
 
 
-class AchievementChecks(Toggle):
-    """Enable in-game achievements as location checks.
-    When enabled, completing achievements sends checks to the multiworld. There are 17 achievement checks in total.
-    Some achievements are only available under specific conditions:
-    - Overtime achievements (Day 5, 10, 15) require a day-based goal long enough to reach days 20, 25, and 30 respectively.
-    - Charcoal Factory and Safety Last require appliance_unlocks to be enabled.
-    - New Chef Plus requires reaching day 15."""
-    display_name = "Enable Achievement Checks"
+class CoinFillerPercent(Range):
+    """What percentage of the remaining filler capacity to fill with Coin items (10 Coins each).
+    Coins provide small amounts of in-game currency when received.
+    At 0, coins still appear naturally through the standard filler queue rotation.
+    The budget is consumed in order across all filler percent options, so the total can never overflow."""
+    display_name = "Coin Filler Percent"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class UnlockedAppliancesInShop(Toggle):
+    """Controls whether appliances that have no unlock item in the pool are immediately available in the shop.
+    When enabled, any appliance not included in the appliance_unlock_pool (because it was not sampled or appliance_unlocks is off) is treated as already unlocked and available to purchase from the start.
+    When disabled, only appliances that have been explicitly unlocked via received items appear in the shop."""
+    display_name = "Unlocked Appliances In Shop"
     default = 1
+
+
+class AchievementCheckMode(Choice):
+    """Controls which achievement location checks are included.
+    all: includes all achievements reachable given the current goal settings (overtime and New Chef Plus are filtered by day count automatically).
+    earned_only: additionally excludes achievements gated behind specific option combinations that are currently disabled (e.g. Charcoal Factory and Safety Last when appliance_unlocks is off).
+    none: disables all achievement checks."""
+    display_name = "Achievement Check Mode"
+    option_all = 0
+    option_earned_only = 1
+    option_none = 2
+    default = 0
 
 
 @dataclass
@@ -407,23 +500,29 @@ class PlateUpOptions(PerGameCommonOptions):
     money_cap_enabled: MoneyCapEnabled
     starting_money_cap: StartingMoneyCap
     money_cap_increase_amount: MoneyCapIncreaseAmount
+    money_cap_increase_count: MoneyCapIncreaseCount
     money_cap_activation: MoneyCapActivation
     appliance_unlocks: ApplianceUnlocks
+    appliance_unlock_pool_size: ApplianceUnlockPoolSize
     appliance_unlock_grants_appliance: ApplianceUnlockGrantsAppliance
+    unlocked_appliances_in_shop: UnlockedAppliancesInShop
     decoration_unlocks: DecorationUnlocks
     trap_cards: TrapCards
     trap_chance: TrapChance
+    trap_weights: TrapWeights
     patience_filler_percent: PatienceFillerPercent
     customer_filler_percent: CustomerFillerPercent
     group_size_filler_percent: GroupSizeFillerPercent
     mess_reduction_percent: MessReductionPercent
+    coin_filler_percent: CoinFillerPercent
     setting_checks: SettingChecks
     setting_check_mode: SettingCheckMode
     setting_extra_checks: SettingExtraChecks
     starting_cards: StartingCards
     starting_cards_amount: StartingCardsAmount
+    extra_starting_cards: ExtraStartingCards
     starting_group_size: StartingGroupSize
     global_patience_enabled: GlobalPatienceEnabled
     global_patience_upgrade_count: GlobalPatienceUpgradeCount
     global_patience_starting_debuff: GlobalPatienceStartingDebuff
-    achievement_checks: AchievementChecks
+    achievement_check_mode: AchievementCheckMode

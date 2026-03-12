@@ -78,6 +78,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
     patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
     patience_interval = max(1, math.ceil(total_progress_days / patience_item_count)) if patience_item_count > 0 else 9999
     money_cap_enabled = world.options.money_cap_enabled.value
+    money_cap_item_count = int(world.options.money_cap_increase_count.value) if money_cap_enabled else 0
     table_in_logic = (
         world.options.appliance_unlocks.value and
         "Unlock Dining Table" in world.item_name_to_id
@@ -106,7 +107,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
                     group_required = min(group_item_count, max(0, (day_number - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                     patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
-                    money_cap_required = day_number // 15 if money_cap_enabled else 0
+                    money_cap_required = min(day_number // 15, money_cap_item_count) if money_cap_enabled else 0
                     add_rule(
                         loc,
                         lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required, cap=money_cap_required: (
@@ -137,7 +138,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                     speed_required = min(speed_upgrade_count, (day_number - 1) // speed_interval)
                     group_required = min(group_item_count, max(0, (day_number - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                     patience_required = min(patience_item_count, (day_number - 1) // patience_interval) if patience_item_count > 0 else 0
-                    money_cap_required = day_number // 15 if money_cap_enabled else 0
+                    money_cap_required = min(day_number // 15, money_cap_item_count) if money_cap_enabled else 0
                     add_rule(
                         loc,
                         lambda state, req=leases_required, spd=speed_required, grp=group_required, pat=patience_required, cap=money_cap_required: (
@@ -198,7 +199,7 @@ def filter_selected_settings(world: "PlateUpWorld"):
 
 def apply_achievement_rules(world: "PlateUpWorld"):
     """Set access rules for achievement location checks."""
-    if not getattr(world.options, 'achievement_checks', None) or not world.options.achievement_checks.value:
+    if getattr(world.options, 'achievement_check_mode', None) is None or world.options.achievement_check_mode.value == 2:
         return
 
     goal = world.options.goal.value
@@ -314,6 +315,7 @@ def apply_rules(world: "PlateUpWorld"):
         patience_item_count = int(world.options.global_patience_upgrade_count.value) if world.options.global_patience_enabled.value else 0
         patience_interval = max(1, _math.ceil(total_days / patience_item_count)) if patience_item_count > 0 else 9999
         money_cap_enabled = world.options.money_cap_enabled.value
+        money_cap_item_count = int(world.options.money_cap_increase_count.value) if money_cap_enabled else 0
         table_in_logic = (
             world.options.appliance_unlocks.value and
             "Unlock Dining Table" in world.item_name_to_id
@@ -340,7 +342,7 @@ def apply_rules(world: "PlateUpWorld"):
                 speed_required = min(int(world.options.player_speed_upgrade_count.value), (global_day - 1) // speed_interval)
                 group_required = min(group_item_count, max(0, (global_day - 1 - group_late_start) // group_interval)) if group_item_count > 0 else 0
                 patience_required = min(patience_item_count, (global_day - 1) // patience_interval) if patience_item_count > 0 else 0
-                money_cap_required = global_day // 15 if money_cap_enabled else 0
+                money_cap_required = min(global_day // 15, money_cap_item_count) if money_cap_enabled else 0
                 table_needed = table_in_logic and global_day >= 15
 
                 # Previous completion within the same run or prior run's Day 15 when d == 1 and run > 0
