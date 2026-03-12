@@ -10,15 +10,16 @@ For more information about yaml options and mod mechanics, refer to the full gui
 [PlateUp! Archipelago Mod Options & Features Guide](https://docs.google.com/document/d/1H_T82UsZbHI4CbvfHWnud8xZqhXH5XWc_sZkax1I8YY/edit?tab=t.0)
 
 ## Installation
+[Video Guide](https://youtu.be/W5X0hPBpipE)
 
 ### Steam Workshop (Recommended)
 
 1. Subscribe to the mod on the [Steam Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3484431423).
 2. Subscribe to all required dependencies listed below — the Workshop page links to them.
-3. Launch PlateUp and go to the HQ (lobby). The config file will be generated automatically on first launch.
+3. Launch PlateUp. The config file will be generated automatically on first launch.
 4. Fill in your Archipelago server details in the config file located at:
    `%appdata%\..\LocalLow\It's Happening\PlateUp\PlateUpAPConfig`
-5. No restart needed — connect and start a run.
+5. No restart needed — connect and start a run. The button to connect is found at Options > PreferenceSystem > PlateupAP > Connect
 
 ### Manual Installation
 
