@@ -1,5 +1,14 @@
 # PlateUp Multiworld Setup Guide
 
+## Quick Start (Returning Players)
+
+1. Fill in your config file at `%appdata%\..\LocalLow\It's Happening\PlateUp\PlateUpAPConfig` with your server, slot name, and password.
+2. Launch PlateUp — the mod will **autoconnect** when you enter the lobby from the main menu, as long as a valid room is available.
+3. Alternatively, connect manually via **Options → PreferenceSystem → PlateupAP → Connect** from either the main menu or the lobby.
+4. Start a new run and select a dish.
+
+---
+
 ## Required Software
 
 - [Latest Archipelago Version](https://github.com/ArchipelagoMW/Archipelago/releases/latest)
@@ -16,20 +25,23 @@ For more information about yaml options and mod mechanics, refer to the full gui
 
 1. Subscribe to the mod on the [Steam Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3484431423).
 2. Subscribe to all required dependencies listed below — the Workshop page links to them.
-3. Launch PlateUp. The config file will be generated automatically on first launch.
+3. Launch PlateUp. The config file will be generated automatically on first launch into the lobby (HQ).
 4. Fill in your Archipelago server details in the config file located at:
    `%appdata%\..\LocalLow\It's Happening\PlateUp\PlateUpAPConfig`
-5. No restart needed — connect and start a run. The button to connect is found at Options > PreferenceSystem > PlateupAP > Connect
+   > **Tip:** You can paste this path directly into Windows Explorer's address bar to open the folder quickly.
+5. The mod will autoconnect the next time you enter the lobby from the main menu, provided a valid room is available. You can also connect manually at any time via **Options → PreferenceSystem → PlateupAP → Connect**.
 
 ### Manual Installation
 
 1. Download the latest release from the [mod repository](https://github.com/CazIsABoi/PlateUpAPMod/releases).
-2. Extract the files into:
+2. Extract the files into your PlateUp Mods folder:
    `Program Files (x86)\Steam\steamapps\common\PlateUp\PlateUp\Mods`
-3. Launch PlateUp and go to the HQ (lobby). The config file will be generated automatically on first launch.
+   > **Note:** This path may differ if Steam is installed in a non-default location. To find the correct path, right-click PlateUp in Steam → **Manage → Browse local files**, then navigate to the `Mods` folder.
+3. Launch PlateUp. The config file will be generated automatically on first launch into the lobby (HQ).
 4. Fill in your Archipelago server details in the config file located at:
    `%appdata%\..\LocalLow\It's Happening\PlateUp\PlateUpAPConfig`
-5. No restart needed — connect and start a run.
+   > **Tip:** You can paste this path directly into Windows Explorer's address bar to open the folder quickly.
+5. The mod will autoconnect the next time you enter the lobby from the main menu, provided a valid room is available. You can also connect manually at any time via **Options → PreferenceSystem → PlateupAP → Connect**.
 
 ### Required Dependencies
 
@@ -61,22 +73,39 @@ Generating a game and hosting an Archipelago server is explained in the [Archipe
 ## Connecting to a MultiWorld
 
 1. Open PlateUp with the Archipelago mod installed.
-2. Go to the HQ (lobby) — **do not try to connect from the main menu**.
-3. Open the config file at `%appdata%\..\LocalLow\It's Happening\PlateUp\PlateUpAPConfig` and fill in:
+2. Open the config file at `%appdata%\..\LocalLow\It's Happening\PlateUp\PlateUpAPConfig` and fill in:
    - **Server**: Your Archipelago server address and port, for example `archipelago.gg:12345`
    - **SlotName**: The player name you used when creating your config file
    - **Password**: Your room password, or leave blank if there isn't one
-4. Save the config file. No restart is needed.
-5. Connect from the HQ and start a new run — checks will begin sending automatically.
+3. Save the config file. No restart is needed.
+4. **Recommended:** Return to (or launch into) the main menu and enter the lobby — the mod will **autoconnect automatically** if a valid room is available.
+   - Alternatively, connect manually via **Options → PreferenceSystem → PlateupAP → Connect** from the main menu or the lobby.
+5. Start a new run and select a dish — checks will begin sending automatically.
+
+> **Note on dish locking:** Dish locking works correctly when connecting via the main menu or autoconnect. If you connect manually while already in the lobby, dish locking may not activate for that session. If this happens, start a run with any dish and lose, abandon, or return to the main menu — dish locking will work correctly from then on. Connecting via the main menu or autoconnect is always recommended.
 
 ## Multiplayer
 
-PlateUp Archipelago supports a limited form of multiplayer based on community findings. Only one player needs to have the mod installed:
+PlateUp Archipelago supports a limited form of multiplayer. Only one player needs to have the mod installed:
 
 - The player with the mod installed connects to the Archipelago server and acts as the host.
 - Additional players join through PlateUp's standard multiplayer without the mod installed.
 
 This is not fully verified and may vary between setups. If you find a more reliable method, please share it in the community.
+
+## How Long Does a Run Take?
+
+A single 15-day PlateUp run typically takes **20–40 minutes**, depending on whether the booking desk is used and how efficiently the restaurant runs.
+
+Total playtime varies significantly based on your goal setting:
+
+| Goal | Description | Estimated Length |
+|---|---|---|
+| `franchise_x_times` | Franchise your restaurant a set number of times | Longest — multiple full runs required |
+| `complete_x_days` | Survive a set number of days across runs | Medium — depends on day count |
+| `complete_x_days_with_dishes` | Reach a target day with a minimum number of active dishes | Variable — can be shorter or longer than franchising depending on settings |
+
+For shorter seeds, consider a lower franchise count or a modest day target. For longer seeds, increase the goal requirements or pair them with higher dish counts.
 
 ## Options
 
@@ -99,13 +128,16 @@ For a full breakdown of every option, see the [Options & Features Guide](https:/
 ## Troubleshooting
 
 **Config file not generating**
-The config file is only created from the HQ (lobby), not the main menu. Make sure you are fully in the lobby before expecting the file to appear.
+The config file is only created after entering the lobby (HQ) for the first time, not from the main menu alone. Make sure you have fully loaded into the lobby at least once.
 
-**Cannot connect from the main menu**
-This is a known limitation. Connect from the HQ (lobby) instead. Dish locking will not activate until after your first run is completed.
+**Mod not appearing in Options**
+Verify that all required dependencies (PreferenceSystem, PlatePatch, KitchenLib, HarmonyX) are installed. Also check that you do not have both the Workshop and manual versions active at the same time.
+
+**Dish locking not working after connecting in the lobby**
+If you connected manually while already in the lobby, dish locking may not activate. Start a run with any dish and lose, abandon, or return to the main menu. Dish locking will work correctly from that point. To avoid this, always connect via the main menu or let autoconnect handle it.
 
 **No dish unlock checks generated**
-Unknown bug. Re-enter the game, reconnect as usual, and make sure to select a new dish on your first run.
+Re-enter the game, reconnect as usual, and make sure to select a new dish on your first run.
 
 **Checks not sending / goal instantly completing**
 Your yaml is likely out of date. A sign of an outdated yaml is if the goal option still shows `franchise_once`, `franchise_twice`, or `franchise_thrice`. Download the latest yaml template and update your options.
@@ -115,3 +147,13 @@ Only one version of the mod should be active at a time. Having both installed wi
 
 **PlateUp update prompt blocking progression**
 Press O, P, K, or L to bypass the prompt.
+
+**Connected but no items are being received**
+This may be a desync. Disconnect and reconnect from the main menu or via autoconnect, then continue your run.
+
+---
+
+**Still having issues?** Post in the thread or send a message to **cazisaboi** on Discord.
+When reporting a problem, please **include your `Player.log`** file, found at:
+`%appdata%\..\LocalLow\It's Happening\PlateUp\`
+> **Tip:** You can paste this path directly into Windows Explorer's address bar to open the folder.
