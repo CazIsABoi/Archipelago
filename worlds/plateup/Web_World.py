@@ -12,6 +12,7 @@ from .Options import (
     PatienceFillerPercent, CustomerFillerPercent, GroupSizeFillerPercent, MessReductionPercent, CoinFillerPercent,
     TrapCards, TrapChance, TrapWeights,
     SettingChecks, SettingCheckMode, SettingExtraChecks, AchievementCheckMode,
+    BlueprintCheckCount, BlueprintBasePrice, BlueprintPriceIncrease,
     DeathLink, DeathLinkBehavior,
 )
 
@@ -39,7 +40,7 @@ option_groups = [
         TrapCards, TrapChance, TrapWeights,
     ]),
     OptionGroup("Checks", [
-        SettingChecks, SettingCheckMode, SettingExtraChecks, AchievementCheckMode,
+        SettingChecks, SettingCheckMode, SettingExtraChecks, AchievementCheckMode, BlueprintCheckCount, BlueprintBasePrice, BlueprintPriceIncrease,
     ]),
 ]
 

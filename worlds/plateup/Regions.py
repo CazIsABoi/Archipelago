@@ -14,6 +14,7 @@ from .Locations import (
     SETTING_LOCATIONS,
     ACHIEVEMENT_LOCATIONS,
     REROLL_LOCATIONS,
+    BLUEPRINT_LOCATIONS,
 )
 
 if TYPE_CHECKING:
@@ -27,13 +28,15 @@ def create_plateup_regions(world: "PlateUpWorld"):
     setting_region = Region("Setting Checks", world.player, world.multiworld)
     achievement_region = Region("Achievement Checks", world.player, world.multiworld)
     reroll_region = Region("Reroll Checks", world.player, world.multiworld)
+    blueprint_region = Region("Blueprint Checks", world.player, world.multiworld)
 
-    world.multiworld.regions.extend([menu_region, progression_region, dish_region, setting_region, achievement_region, reroll_region])
+    world.multiworld.regions.extend([menu_region, progression_region, dish_region, setting_region, achievement_region, reroll_region, blueprint_region])
     menu_region.connect(progression_region)
     progression_region.connect(dish_region)
     menu_region.connect(setting_region)
     menu_region.connect(achievement_region)
     menu_region.connect(reroll_region)
+    menu_region.connect(blueprint_region)
 
     user_goal = world.options.goal.value
     progression_locs = []
@@ -529,5 +532,49 @@ def create_plateup_regions(world: "PlateUpWorld"):
             if caps_needed > 0:
                 loc.access_rule = lambda state, n=caps_needed: state.has("Money Cap Increase", world.player, n)
             reroll_region.locations.append(loc)
+    except Exception:
+        pass
+
+    # Populate Blueprint Checks region
+    # Checks 1-3 are always visible (player starts with 3 blueprints in the shop).
+    # Check N (N > 3) requires check N-1 to have been purchased first (it replaces the bought slot).
+    # If money_cap is enabled and the blueprint's cost exceeds the current cap, Money Cap Increase items
+    # are required before that blueprint is affordable.
+    try:
+        planned = getattr(world, '_location_name_to_id', {})
+        bp_base_price = int(world.options.blueprint_base_price.value)
+        bp_price_increase = int(world.options.blueprint_price_increase.value)
+        bp_cap_enabled = world.options.money_cap_enabled.value
+        bp_starting_cap = int(world.options.starting_money_cap.value)
+        bp_cap_amount = int(world.options.money_cap_increase_amount.value)
+        # Clamp caps_needed so bonus checks (just beyond the hard cap) only require all available
+        # cap items rather than an impossible count — the remainder is covered by in-day gold.
+        bp_cap_count = int(world.options.money_cap_increase_count.value) if bp_cap_enabled else 0
+        for loc_name, loc_id in BLUEPRINT_LOCATIONS.items():
+            if loc_name not in planned:
+                continue
+            i = int(loc_name.removeprefix("Blueprint Check "))
+            cost = bp_base_price + (i - 1) * bp_price_increase
+            caps_needed = (
+                min(max(0, math.ceil((cost - bp_starting_cap) / bp_cap_amount)), bp_cap_count)
+                if bp_cap_enabled and bp_cap_amount > 0 and cost > bp_starting_cap
+                else 0
+            )
+            loc = PlateUpLocation(world.player, loc_name, loc_id, parent=blueprint_region)
+            needs_prev = i > 3
+            if needs_prev and caps_needed > 0:
+                prev = f"Blueprint Check {i - 1}"
+                def _bp_rule(state, p=prev, n=caps_needed):
+                    return (
+                        state.can_reach(p, "Location", world.player)
+                        and state.has("Money Cap Increase", world.player, n)
+                    )
+                loc.access_rule = _bp_rule
+            elif needs_prev:
+                prev = f"Blueprint Check {i - 1}"
+                loc.access_rule = lambda state, p=prev: state.can_reach(p, "Location", world.player)
+            elif caps_needed > 0:
+                loc.access_rule = lambda state, n=caps_needed: state.has("Money Cap Increase", world.player, n)
+            blueprint_region.locations.append(loc)
     except Exception:
         pass

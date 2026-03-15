@@ -246,7 +246,7 @@ class TrapChance(Range):
     display_name = "Trap Chance"
     range_start = 0
     range_end = 100
-    default = 0
+    default = 10
 
 
 _TRAP_WEIGHT_KEYS = [
@@ -317,8 +317,7 @@ class StartingCards(Choice):
     option_easy = 1
     option_hard = 2
     option_both = 3
-    default = 0
-
+    default = 1
 
 class StartingCardsAmount(Range):
     """How many Customer Cards are dealt at the start of each run.
@@ -327,7 +326,7 @@ class StartingCardsAmount(Range):
     display_name = "Starting Cards Amount"
     range_start = 1
     range_end = 8
-    default = 3
+    default = 4
 
 
 EXTRA_CARD_VALID_KEYS = (
@@ -401,7 +400,7 @@ class GlobalPatienceStartingDebuff(Range):
     display_name = "Global Patience Starting Debuff"
     range_start = -100
     range_end = 0
-    default = -50
+    default = -20
 
 
 class PatienceFillerPercent(Range):
@@ -480,6 +479,48 @@ class AchievementCheckMode(Choice):
     default = 0
 
 
+class BlueprintCheckCount(Range):
+    """How many Archipelago blueprint checks to add to the location pool.
+    On appliance shop days, 3 Archipelago pedestals appear by the street alongside the regular shop.
+    Buying a pedestal sends a check and replaces it with the next one in the pool, so the 3 visible slots
+    cycle through the entire queue over time.
+    Set to 0 to disable pedestal checks entirely.
+    When money_cap_enabled is on, checks whose cost exceeds the maximum achievable cap are excluded so they
+    are never permanently inaccessible. A buffer of ~30% extra checks beyond that hard limit is still included
+    because gold earned during a service day (before the cap is applied) can cover the shortfall — those bonus
+    checks simply require all available Money Cap Increase items to be in logic."""
+    display_name = "Blueprint Check Count"
+    range_start = 0
+    range_end = 100
+    default = 10
+
+
+class BlueprintBasePrice(Range):
+    """The coin cost of the very first Archipelago pedestal.
+    Each subsequent pedestal costs this amount plus blueprint_price_increase, so costs rise as more are purchased.
+    If the price of a pedestal would exceed the maximum achievable money cap (starting_money_cap +
+    money_cap_increase_amount × money_cap_increase_count) for more than ~30%% of the requested checks, the
+    excess checks are silently dropped from the pool to prevent inaccessible locations.
+    Only relevant when blueprint_check_count is greater than 0."""
+    display_name = "Blueprint Base Price"
+    range_start = 0
+    range_end = 200
+    default = 10
+
+
+class BlueprintPriceIncrease(Range):
+    """How many extra coins each successive pedestal costs compared to the one before it.
+    For example, with a base price of 10 and an increase of 20, the pedestals cost 10, 30, 50, 70, and so on.
+    Set to 0 to keep all pedestals at the same price.
+    High values combined with a low money cap will cause later checks to be excluded or capped at the
+    all-items-required access rule (see blueprint_check_count for details).
+    Only relevant when blueprint_check_count is greater than 0."""
+    display_name = "Blueprint Price Increase"
+    range_start = 0
+    range_end = 100
+    default = 10
+
+
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
@@ -526,3 +567,6 @@ class PlateUpOptions(PerGameCommonOptions):
     global_patience_upgrade_count: GlobalPatienceUpgradeCount
     global_patience_starting_debuff: GlobalPatienceStartingDebuff
     achievement_check_mode: AchievementCheckMode
+    blueprint_check_count: BlueprintCheckCount
+    blueprint_base_price: BlueprintBasePrice
+    blueprint_price_increase: BlueprintPriceIncrease

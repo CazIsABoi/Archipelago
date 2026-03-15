@@ -174,3 +174,11 @@ REROLL_LOCATIONS: Dict[str, int] = {
     f"Reroll Cost {cost}": 150000 + (cost // 10)
     for cost in range(20, 310, 10)
 }
+
+# Blueprint shop checks (IDs 160001–160100)
+# On appliance days, 3 Archipelago blueprints spawn beside the regular shop.
+# Each purchase sends a check and the slot cycles to the next blueprint in the pool.
+BLUEPRINT_LOCATIONS: Dict[str, int] = {
+    f"Blueprint Check {i}": 160000 + i
+    for i in range(1, 101)
+}

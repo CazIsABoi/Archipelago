@@ -14,6 +14,7 @@ from .Locations import (
     SETTING_LOCATIONS,
     ACHIEVEMENT_LOCATIONS,
     REROLL_LOCATIONS,
+    BLUEPRINT_LOCATIONS,
     BASE_SETTING_NAME,
     OPTIONAL_SETTING_DISPLAY,
 )
@@ -41,6 +42,7 @@ class PlateUpWorld(World):
         **SETTING_LOCATIONS,
         **ACHIEVEMENT_LOCATIONS,
         **REROLL_LOCATIONS,
+        **BLUEPRINT_LOCATIONS,
     }
 
     def __init__(self, *args, **kwargs):
@@ -69,6 +71,78 @@ class PlateUpWorld(World):
                     f"'dish_goal_count' ({dish_goal}) cannot exceed 'dish' ({dish_count}). "
                     "Lower dish_goal_count or raise the dish count."
                 )
+
+        self._validate_item_location_balance()
+
+    def _validate_item_location_balance(self):
+        """Raise a clear error if mandatory items would exceed available locations."""
+        # Populate selections so generate_location_table returns the real count.
+        self.set_selected_dishes()
+        self.set_selected_settings()
+        location_count = len(self.generate_location_table())
+
+        # Mirror the mandatory item placement order in create_items.
+        opts = self.options
+        if opts.goal.value == Goal.option_franchise_x_times:
+            total_days = 15 * int(opts.franchise_count.value)
+        elif opts.goal.value == Goal.option_reach_day_x_with_dishes:
+            total_days = int(opts.day_target.value)
+        else:
+            total_days = int(opts.day_count.value)
+
+        free_count = min(int(opts.free_starter_dishes.value), int(opts.dish.value))
+        dish_unlocks = max(0, int(opts.dish.value) - free_count)
+
+        player_speed = int(opts.player_speed_upgrade_count.value)
+
+        raw_appliance_speed = int(opts.appliance_speed_upgrade_count.value)
+        appliance_speed = raw_appliance_speed * 3 if opts.appliance_speed_mode.value == 1 else raw_appliance_speed
+
+        money_cap = int(opts.money_cap_increase_count.value) if opts.money_cap_enabled.value else 0
+
+        if opts.day_leases_enabled.value:
+            interval = max(1, int(opts.day_lease_interval.value))
+            day_leases = math.ceil(total_days / interval)
+        else:
+            day_leases = 0
+
+        remove_cards = 0
+        if opts.starting_cards.value != 0:
+            remove_cards += int(opts.starting_cards_amount.value)
+        remove_cards += len(list(opts.extra_starting_cards.value))
+
+        group_size = int(opts.starting_group_size.value)
+        group_items = max(0, group_size - 1) if group_size > 0 else 0
+
+        patience_items = int(opts.global_patience_upgrade_count.value) if opts.global_patience_enabled.value else 0
+
+        shop_size = max(1, total_days // 10)
+
+        mandatory_items = (
+            dish_unlocks + player_speed + appliance_speed + money_cap
+            + day_leases + remove_cards + group_items + patience_items + shop_size
+        )
+
+        if mandatory_items > location_count:
+            speed_detail = (
+                f"{raw_appliance_speed} ×3 = {appliance_speed} (separate mode)"
+                if opts.appliance_speed_mode.value == 1 else str(raw_appliance_speed)
+            )
+            lease_detail = (
+                f"ceil({total_days}/{interval}) = {day_leases}"
+                if opts.day_leases_enabled.value else "disabled"
+            )
+            raise Exception(
+                f"[{self.multiworld.player_name[self.player]}] "
+                f"Option combination produces {mandatory_items} mandatory items but only "
+                f"{location_count} locations are available — generation would fail. "
+                f"Mandatory item breakdown: dish_unlocks={dish_unlocks}, "
+                f"player_speed={player_speed}, appliance_speed={speed_detail}, "
+                f"money_cap_increase={money_cap}, day_leases={lease_detail}, "
+                f"remove_cards={remove_cards}, reduce_group_size={group_items}, "
+                f"patience_upgrades={patience_items}, shop_size={shop_size}. "
+                f"Reduce upgrade counts or increase the day target/count."
+            )
 
     def generate_location_table(self):
         """Plan locations based on goal/options and selected dishes."""
@@ -228,6 +302,46 @@ class PlateUpWorld(World):
             cost = int(loc_name.removeprefix("Reroll Cost "))
             if cost <= _reroll_max:
                 locs[loc_name] = loc_id
+
+        # Blueprint shop checks.
+        # Checks strictly within the max achievable cap are always included.
+        # A further ~30% of that count are added as "bonus" checks: these cost more than the hard cap
+        # but are still reachable because the player can accumulate gold during a service day without
+        # hitting the between-day cap (especially relevant when money_cap_activation = start_of_day).
+        # Their access rule is clamped to require all available cap items rather than an impossible count.
+        blueprint_count = int(self.options.blueprint_check_count.value)
+        if blueprint_count > 0:
+            bp_base = int(self.options.blueprint_base_price.value)
+            bp_increase = int(self.options.blueprint_price_increase.value)
+            if self.options.money_cap_enabled.value and int(self.options.money_cap_increase_amount.value) > 0:
+                _bp_max_cap = (
+                    int(self.options.starting_money_cap.value)
+                    + int(self.options.money_cap_increase_amount.value)
+                    * int(self.options.money_cap_increase_count.value)
+                )
+                _within_cap = sum(
+                    1 for i in range(1, blueprint_count + 1)
+                    if (bp_base + (i - 1) * bp_increase) <= _bp_max_cap
+                )
+                _cap_limit = min(blueprint_count, math.ceil(_within_cap * 1.3))
+            else:
+                _bp_max_cap = None  # no cap limit — all checks are affordable
+                _cap_limit = blueprint_count
+            if _bp_max_cap is not None and _cap_limit < blueprint_count:
+                _bonus = _cap_limit - _within_cap
+                logging.warning(
+                    f"[{self.multiworld.player_name[self.player]}] "
+                    f"Blueprint checks limited to {_cap_limit} of {blueprint_count} requested: "
+                    f"{_within_cap} fit within the max achievable cap ({_bp_max_cap}g), "
+                    f"plus {_bonus} bonus check(s) (~30%%) reachable via in-day gold accumulation. "
+                    f"Raise money_cap_increase_count or lower blueprint_base_price/blueprint_price_increase "
+                    f"to include more."
+                )
+            for i in range(1, _cap_limit + 1):
+                name = f"Blueprint Check {i}"
+                loc_id = BLUEPRINT_LOCATIONS.get(name)
+                if loc_id is not None:
+                    locs[name] = loc_id
 
         # "Lose a Run" is always created by create_regions for every goal
         lose_id = FRANCHISE_LOCATION_DICT.get("Lose a Run") or DAY_LOCATION_DICT.get("Lose a Run")
@@ -419,7 +533,7 @@ class PlateUpWorld(World):
                 _weighted_trap_pool = [
                     item_name
                     for key, item_name in _trap_key_to_name.items()
-                    for _ in range(max(0, _trap_weights.get(key, 1)))
+                    for _ in range(max(0, _trap_weights.get(key, 0)))
                 ]
                 if not _weighted_trap_pool:
                     _weighted_trap_pool = list(_trap_key_to_name.values())
@@ -737,6 +851,16 @@ class PlateUpWorld(World):
             options_dict["setting_locations_present"] = 0
         # Diagnostics
         options_dict["dish_unlocks"] = 0 if self.options.dish.value == 0 else 1
+        # Blueprint check info for client
+        _bp_count = int(self.options.blueprint_check_count.value)
+        options_dict["blueprint_check_count"] = _bp_count
+        options_dict["blueprint_base_price"] = int(self.options.blueprint_base_price.value)
+        options_dict["blueprint_price_increase"] = int(self.options.blueprint_price_increase.value)
+        options_dict["blueprint_check_ids"] = {
+            name: loc_id
+            for name, loc_id in BLUEPRINT_LOCATIONS.items()
+            if int(name.removeprefix("Blueprint Check ")) <= _bp_count
+        } if _bp_count > 0 else {}
         # Reroll check info for client
         if self.options.money_cap_enabled.value:
             if self.options.goal.value == Goal.option_franchise_x_times:
