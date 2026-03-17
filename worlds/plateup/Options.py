@@ -59,13 +59,33 @@ class DayLeasesEnabled(Toggle):
 
 class DayLeaseInterval(Range):
     """How many days pass between each required Day Lease.
-    For example, a value of 5 means you need 1 lease to play days 1–5, 2 leases for days 6–10, and so on.
+    For example, a value of 5 means you need 1 lease to play days 1-5, 2 leases for days 6-10, and so on.
     Lower values create more frequent progression gates; higher values result in larger, less frequent gates.
     Only relevant when day_leases_enabled is on."""
     display_name = "Day Lease Interval"
     range_start = 1
     range_end = 30
     default = 5
+
+class DayLeaseMode(Choice):
+    """Controls how Day Lease items are organised when day_leases_enabled is on.
+    global: a single shared 'Day Lease' item gates progression across all day-based content (default behaviour).
+    dish_specific: each dish gets its own named lease items (e.g. 'Steak Day Lease') that only gate progress on that dish's day locations. Requires dish_count > 0.
+    Only relevant when day_leases_enabled is on."""
+    display_name = "Day Lease Mode"
+    option_global = 0
+    option_dish_specific = 1
+    default = 0
+
+class DishLeaseScope(Choice):
+    """When day_lease_mode is dish_specific, controls which dishes receive their own lease items.
+    all_dishes: every selected dish gets its own set of Day Lease items, one block per dish.
+    goal_count_only: only the first dish_goal_count dishes receive lease items; any remaining dishes have their day locations ungated by leases.
+    Only relevant when goal is reach_day_x_with_dishes, day_leases_enabled is on, and day_lease_mode is dish_specific."""
+    display_name = "Dish Lease Scope"
+    option_all_dishes = 0
+    option_goal_count_only = 1
+    default = 0
 
 class DishCount(Range):
     """How many dishes are randomized into the item pool as unlock items, and how many dish-day location checks are generated.
@@ -228,21 +248,11 @@ class DecorationUnlocks(Toggle):
     default = 1
 
 
-class TrapCards(Toggle):
-    """Enable trap items in the pool that impose negative effects when received.
-    Traps replace filler items and include effects like extra customers, patience decreases, fires, and more.
-    The proportion of filler replaced by traps is controlled by trap_chance.
-    When disabled, no trap items are placed regardless of trap_chance."""
-    display_name = "Enable Traps"
-    default = 1
-
-
 class TrapChance(Range):
     """The percentage of remaining filler slots that will be replaced by trap items.
-    At 0, the legacy auto-scaling trap behavior is used (traps scale with run length).
+    Set to 0 to disable traps entirely.
     At 100, every available filler slot becomes a trap.
-    Which traps appear and their relative frequency is controlled by trap_weights.
-    Only used when trap_cards is enabled."""
+    Which traps appear and their relative frequency is controlled by trap_weights."""
     display_name = "Trap Chance"
     range_start = 0
     range_end = 100
@@ -260,7 +270,7 @@ _TRAP_WEIGHT_KEYS = [
 class TrapWeights(OptionCounter):
     """Relative weights for each trap type. Higher values make that trap more likely to appear.
     Set a trap's weight to 0 to exclude it entirely from the pool.
-    Has no effect when trap_cards is disabled or trap_chance is 0 (legacy auto-scaling mode).
+    Set trap_chance to 0 to disable traps entirely.
     random_dish_extra: adds a random dish extra requirement (e.g. extra napkins, candles) for the day.
     random_side_dish: adds a random side dish requirement for the day.
     tip_jar_drain: empties your tip jar for the day.
@@ -535,6 +545,8 @@ class PlateUpOptions(PerGameCommonOptions):
     death_link_behavior: DeathLinkBehavior
     day_leases_enabled: DayLeasesEnabled
     day_lease_interval: DayLeaseInterval
+    day_lease_mode: DayLeaseMode
+    dish_lease_scope: DishLeaseScope
     player_speed_upgrade_count: PlayerSpeedUpgradeCount
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
     appliance_speed_mode: ApplianceSpeedMode
@@ -548,7 +560,6 @@ class PlateUpOptions(PerGameCommonOptions):
     appliance_unlock_grants_appliance: ApplianceUnlockGrantsAppliance
     unlocked_appliances_in_shop: UnlockedAppliancesInShop
     decoration_unlocks: DecorationUnlocks
-    trap_cards: TrapCards
     trap_chance: TrapChance
     trap_weights: TrapWeights
     patience_filler_percent: PatienceFillerPercent

@@ -2,7 +2,7 @@ from typing import Dict, Set
 from BaseClasses import Location
 
 class PlateUpLocation(Location):
-    game = "PlateUp"
+    game = "plateup"
 
 EXCLUDED_LOCATIONS: Set[int] = set()
 
@@ -114,71 +114,30 @@ dish_dictionary = {
 
 DISH_LOCATIONS: Dict[str, int] = {}
 for dish_id, dish_name in dish_dictionary.items():
-    for day in range(1, 101):  # up to 100 to support day_target max
+    for day in range(1, 16):
         loc_name = f"{dish_name} - Day {day}"
         loc_id = (dish_id * 10000) + day
         DISH_LOCATIONS[loc_name] = loc_id
 
-
-BASE_SETTING_NAME = "Base Setting"
-OPTIONAL_SETTING_DISPLAY = {
+# ─── Setting Check Locations ───────────────────────────────────────────────────
+_setting_slug_to_display: Dict[str, str] = {
     "autumn": "Autumn",
     "banquet": "Banquet",
     "turbo": "Turbo",
     "witch": "Witch Hut",
 }
-OPTIONAL_SETTING_NAMES: tuple[str, ...] = tuple(OPTIONAL_SETTING_DISPLAY.keys())
+OPTIONAL_SETTING_NAMES: list = list(_setting_slug_to_display.keys())
 
-
-SETTING_LOCATIONS: Dict[str, int] = {}
-SETTING_LOCATION_BASE_ID = 130000
-
-
-def _add_setting_block(display_name: str, index: int) -> None:
-    base_offset = SETTING_LOCATION_BASE_ID + (index * 100)
-    for day in range(1, 16):
-        loc_name = f"{display_name} - Day {day}"
-        loc_id = base_offset + day
-        SETTING_LOCATIONS[loc_name] = loc_id
-
-
-_add_setting_block(BASE_SETTING_NAME, 0)
-
-for idx, slug in enumerate(OPTIONAL_SETTING_NAMES, start=1):
-    display = OPTIONAL_SETTING_DISPLAY[slug]
-    _add_setting_block(display, idx)
-
-# Achievement location checks (IDs 140001–140017)
-ACHIEVEMENT_LOCATIONS: Dict[str, int] = {
-    "This Is Fine":      140001,
-    "Fireman":           140002,
-    "Oh No":             140003,
-    "Charcoal Factory":  140004,
-    "Safety Last":       140005,
-    "Learning By Doing": 140006,
-    "Please Wait":       140007,
-    "Flawless Timing":   140008,
-    "Health Inspector?": 140009,
-    "Circle Line":       140010,
-    "Chef School":       140011,
-    "New Chef Plus":     140012,
-    "Overtime Day 5":    140013,
-    "Overtime Day 10":   140014,
-    "Overtime Day 15":   140015,
-    "Anti-social":       140016,
-    "Work Smart":        140017,
+SETTING_LOCATIONS: Dict[str, int] = {
+    f"Base Setting - Day {d}": 160000 + d for d in range(1, 16)
 }
 
-# Reroll cost checks (IDs 150001–150015, costs 10–150 in steps of 10)
-REROLL_LOCATIONS: Dict[str, int] = {
-    f"Reroll Cost {cost}": 150000 + (cost // 10)
-    for cost in range(20, 310, 10)
-}
+EXTRA_SETTING_LOCATIONS: Dict[str, int] = {}
+for _s_idx, (_s_slug, _s_display) in enumerate(_setting_slug_to_display.items()):
+    for _s_day in range(1, 16):
+        EXTRA_SETTING_LOCATIONS[f"{_s_display} - Day {_s_day}"] = 161000 + _s_idx * 1000 + _s_day
 
-# Blueprint shop checks (IDs 160001–160100)
-# On appliance days, 3 Archipelago blueprints spawn beside the regular shop.
-# Each purchase sends a check and the slot cycles to the next blueprint in the pool.
+# ─── Blueprint Check Locations ─────────────────────────────────────────────────
 BLUEPRINT_LOCATIONS: Dict[str, int] = {
-    f"Blueprint Check {i}": 160000 + i
-    for i in range(1, 101)
+    f"Blueprint Check {i}": 150000 + i for i in range(1, 101)
 }
