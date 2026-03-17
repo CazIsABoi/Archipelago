@@ -3,5 +3,5 @@ from ..World import PlateUpWorld
 
 
 class PlateUpTestBase(WorldTestBase):
-    game = "plateup"
+    game = "PlateUp"
     world: PlateUpWorld

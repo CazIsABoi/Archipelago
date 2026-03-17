@@ -51,6 +51,8 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
 
     interval = max(1, int(world.options.day_lease_interval.value))
     leases_enabled = bool(world.options.day_leases_enabled.value)
+    lease_mode = world.options.day_lease_mode.value
+    dishes_with_leases = set(getattr(world, 'dishes_with_leases', []))
 
     for i in range(len(dish_order) - 1):
         current_loc_name = dish_order[i]
@@ -74,10 +76,20 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                     if day_number:
                         leases_required = max(0, (day_number - 1) // interval)
                         if leases_required > 0:
-                            add_rule(
-                                loc,
-                                lambda state, req=leases_required: state.has("Day Lease", world.player, req)
-                            )
+                            if lease_mode == 1 and dishes_with_leases:  # dish_specific
+                                dish_name = next_loc_name.rsplit(" - Day ", 1)[0]
+                                if dish_name in dishes_with_leases:
+                                    add_rule(
+                                        loc,
+                                        lambda state, item=f"{dish_name} Day Lease", req=leases_required:
+                                            state.has(item, world.player, req)
+                                    )
+                                # else: dish is out of scope — no lease gating
+                            else:  # global
+                                add_rule(
+                                    loc,
+                                    lambda state, req=leases_required: state.has("Day Lease", world.player, req)
+                                )
             except KeyError:
                 pass
 
@@ -160,13 +172,23 @@ def apply_rules(world: "PlateUpWorld"):
                 except KeyError:
                     pass
 
-        # Gate franchise day completion locations by Day Lease only (no speed gating).
+        # Gate franchise day completion locations by the appropriate lease item.
+        # In dish_specific mode Overtime Day Lease is used; otherwise regular Day Lease.
         try:
             required_franchises = int(world.options.franchise_count.value)
         except Exception:
             required_franchises = 1
         interval = max(1, int(world.options.day_lease_interval.value))
         leases_enabled = bool(world.options.day_leases_enabled.value)
+        _is_dish_specific_franchise = (
+            world.options.day_lease_mode.value == 1
+            and world.options.dish.value > 0
+            and bool(getattr(world, 'selected_dishes', []))
+        )
+        _franchise_lease_item = "Overtime Day Lease" if _is_dish_specific_franchise else "Day Lease"
+        # In overtime mode, count how many dishes have leases (mirrors Regions.py + World.py logic).
+        # For franchise goal (goal 0), scope=goal_count_only is ignored \u2014 all dishes get leases.
+        _franchise_dishes_count = len(getattr(world, 'dishes_with_leases', [])) if _is_dish_specific_franchise else 0
 
         def run_suffix(run: int) -> str:
             if run == 0:
@@ -184,7 +206,12 @@ def apply_rules(world: "PlateUpWorld"):
             for d in range(1, 16):
                 cur_name = f"Franchise - Complete {day_label(d)}{suff}"
                 global_day = run * 15 + d
-                leases_required = (global_day - 1) // interval if leases_enabled else 0
+                if _is_dish_specific_franchise and leases_enabled:
+                    leases_required = max(0, math.ceil((global_day - 15 * _franchise_dishes_count) / interval))
+                elif leases_enabled:
+                    leases_required = (global_day - 1) // interval
+                else:
+                    leases_required = 0
 
                 if d == 1:
                     prev_name = None if run == 0 else f"Franchise - Complete Day 15{run_suffix(run - 1)}"
@@ -196,14 +223,14 @@ def apply_rules(world: "PlateUpWorld"):
                     if prev_name is None:
                         if leases_required > 0:
                             loc_cur.access_rule = (
-                                lambda state, req=leases_required: state.has("Day Lease", world.player, req)
+                                lambda state, req=leases_required, li=_franchise_lease_item: state.has(li, world.player, req)
                             )
                     else:
                         if leases_required > 0:
                             loc_cur.access_rule = (
-                                lambda state, p=prev_name, req=leases_required: (
+                                lambda state, p=prev_name, req=leases_required, li=_franchise_lease_item: (
                                     state.can_reach(p, "Location", world.player)
-                                    and state.has("Day Lease", world.player, req)
+                                    and state.has(li, world.player, req)
                                 )
                             )
                         else:

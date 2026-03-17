@@ -222,12 +222,13 @@ class ApplianceUnlocks(Toggle):
 
 class ApplianceUnlockPoolSize(Range):
     """How many named appliance unlock items to include in the pool when appliance_unlocks is enabled.
-    The pool always prioritises progression-critical appliances (Hob, Counter, Sink, Plate Stack, Blueprint Cabinet, Research Desk) first, then randomly samples from the remaining appliances up to the chosen size.
+    The pool always prioritises progression-critical appliances (Hob, Counter, Sink, Plate Stack, Research Desk, Conveyor Belt, Grabber) first, then randomly samples from the remaining appliances up to the chosen size.
     Lower values create a tighter, more focused pool; higher values allow more variety.
+    The maximum of 89 includes all 58 useful and 31 filler appliances from the mod's dictionaries.
     Only relevant when appliance_unlocks is enabled."""
     display_name = "Appliance Unlock Pool Size"
     range_start = 10
-    range_end = 93
+    range_end = 89
     default = 30
 
 

@@ -33,6 +33,50 @@ def create_plateup_regions(world: "PlateUpWorld"):
     user_goal = world.options.goal.value
     progression_locs = []
 
+    # Determine which item (if any) gates day-tier progression entrances.
+    # Dish-specific mode: each dish's lease items cover that dish's day chain (days 1-15).
+    # Overtime Day Lease covers days that exceed dish-lease capacity:
+    #   overtime_days = max(0, total_days - 15 * num_dishes_with_leases)
+    # If overtime_days == 0 every day is already covered by dish leases — no entrance gating needed.
+    # Goal 2 uses dish leases only; entrance rules never require a lease item.
+    # Global mode: Day Lease (unchanged).
+    _is_dish_specific = (
+        world.options.day_lease_mode.value == 1
+        and world.options.dish.value > 0
+        and bool(getattr(world, 'selected_dishes', []))
+    )
+
+    # Mirror World.py's total_days computation.
+    if user_goal == 0:
+        _total_days_for_lease = 15 * int(world.options.franchise_count.value)
+    elif user_goal == 2:
+        _total_days_for_lease = int(world.options.day_target.value)
+    else:
+        _total_days_for_lease = int(world.options.day_count.value)
+
+    # Mirror World.py's dishes_with_leases computation (scope only applies for goal 2).
+    if _is_dish_specific:
+        _scope = world.options.dish_lease_scope.value
+        if _scope == 1 and user_goal == 2:
+            _dishes_with_leases_count = min(
+                world.options.dish_goal_count.value, len(world.selected_dishes)
+            )
+        else:
+            _dishes_with_leases_count = len(world.selected_dishes)
+        _overtime_days = max(0, _total_days_for_lease - 15 * _dishes_with_leases_count)
+    else:
+        _dishes_with_leases_count = 0
+        _overtime_days = 0
+
+    if _is_dish_specific and user_goal == 2:
+        _day_lease_item: str | None = None  # dish leases are sufficient for goal 2
+    elif _is_dish_specific and _overtime_days > 0:
+        _day_lease_item = "Overtime Day Lease"
+    elif _is_dish_specific:
+        _day_lease_item = None  # dish leases cover every day — no extra gating needed
+    else:
+        _day_lease_item = "Day Lease"
+
     if user_goal == 0:
         # Franchise goal: Build per-run, per-day regions with chained entrances and lease requirements.
         # Exclude all day-goal locations (use per-world set to avoid cross-test pollution)
@@ -70,9 +114,12 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
         included_names = set()
 
-        # Helper to compute leases requirement based on global day number (run*15 + d)
+        # Helper to compute leases requirement based on global day number (run*15 + d).
+        # In overtime mode, only global days beyond the dish-lease cap require a lease.
         def leases_required_for(run: int, d: int) -> int:
             global_day = run * 15 + d
+            if _day_lease_item == "Overtime Day Lease":
+                return max(0, math.ceil((global_day - 15 * _dishes_with_leases_count) / interval))
             return (global_day - 1) // interval
 
         # Chain within runs and across runs
@@ -88,11 +135,13 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 prev_label = day_label(d - 1)
                 req = leases_required_for(run, d)
 
-                def rule_factory(pl=prev_label, s=suff, req=req):
-                    return lambda state: (
-                        state.can_reach(f"Franchise - Complete {pl}{s}", "Location", world.player)
-                        and state.has("Day Lease", world.player, req)
-                    )
+                def rule_factory(pl=prev_label, s=suff, req=req, lit=_day_lease_item):
+                    if lit:
+                        return lambda state: (
+                            state.can_reach(f"Franchise - Complete {pl}{s}", "Location", world.player)
+                            and state.has(lit, world.player, req)
+                        )
+                    return lambda state: state.can_reach(f"Franchise - Complete {pl}{s}", "Location", world.player)
 
                 e.access_rule = rule_factory()
                 try:
@@ -113,11 +162,13 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 req = leases_required_for(run + 1, 1)
                 prev_suff = suff
 
-                def next_run_rule_factory(pl=prev_label, ps=prev_suff, req=req):
-                    return lambda state: (
-                        state.can_reach(f"Franchise - Complete {pl}{ps}", "Location", world.player)
-                        and state.has("Day Lease", world.player, req)
-                    )
+                def next_run_rule_factory(pl=prev_label, ps=prev_suff, req=req, lit=_day_lease_item):
+                    if lit:
+                        return lambda state: (
+                            state.can_reach(f"Franchise - Complete {pl}{ps}", "Location", world.player)
+                            and state.has(lit, world.player, req)
+                        )
+                    return lambda state: state.can_reach(f"Franchise - Complete {pl}{ps}", "Location", world.player)
 
                 e.access_rule = next_run_rule_factory()
                 try:
@@ -251,15 +302,22 @@ def create_plateup_regions(world: "PlateUpWorld"):
             e = Entrance(world.player, f"Day {day-1} -> Day {day}", parent=prev_region)
             prev_region.exits.append(e)
 
-            # Leases required to ENTER day d: floor((d-1)/interval)
-            leases_required = (day - 1) // interval
+            # Leases required to ENTER day d.
+            # In overtime mode, only days that exceed dish-lease coverage need a lease;
+            # earlier days have req=0 (always satisfiable) since dish leases cover them.
+            if _day_lease_item == "Overtime Day Lease":
+                leases_required = max(0, math.ceil((day - 15 * _dishes_with_leases_count) / interval))
+            else:
+                leases_required = (day - 1) // interval
 
             # Access requires completion of previous day (location sits in source region => safe)
-            def entrance_rule_factory(d=day, req=leases_required):
-                return lambda state: (
-                    state.can_reach(f"Complete Day {d-1}", "Location", world.player)
-                    and state.has("Day Lease", world.player, req)
-                )
+            def entrance_rule_factory(d=day, req=leases_required, lit=_day_lease_item):
+                if lit:
+                    return lambda state: (
+                        state.can_reach(f"Complete Day {d-1}", "Location", world.player)
+                        and state.has(lit, world.player, req)
+                    )
+                return lambda state: state.can_reach(f"Complete Day {d-1}", "Location", world.player)
 
             e.access_rule = entrance_rule_factory()
             # Tell the generator to re-check when prev region becomes accessible (belt-and-suspenders)
@@ -367,11 +425,13 @@ def create_plateup_regions(world: "PlateUpWorld"):
 
             leases_required = (day - 1) // interval
 
-            def entrance_rule_factory_g2(d=day, req=leases_required):
-                return lambda state: (
-                    state.can_reach(f"Complete Day {d-1}", "Location", world.player)
-                    and state.has("Day Lease", world.player, req)
-                )
+            def entrance_rule_factory_g2(d=day, req=leases_required, lit=_day_lease_item):
+                if lit:
+                    return lambda state: (
+                        state.can_reach(f"Complete Day {d-1}", "Location", world.player)
+                        and state.has(lit, world.player, req)
+                    )
+                return lambda state: state.can_reach(f"Complete Day {d-1}", "Location", world.player)
 
             e.access_rule = entrance_rule_factory_g2()
             try:

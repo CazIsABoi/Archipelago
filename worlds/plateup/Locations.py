@@ -2,7 +2,7 @@ from typing import Dict, Set
 from BaseClasses import Location
 
 class PlateUpLocation(Location):
-    game = "plateup"
+    game = "PlateUp"
 
 EXCLUDED_LOCATIONS: Set[int] = set()
 

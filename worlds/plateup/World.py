@@ -5,7 +5,7 @@ from collections import Counter
 from BaseClasses import ItemClassification, CollectionState
 from worlds.AutoWorld import World
 from . import Web_World
-from .Items import ITEMS, PlateUpItem
+from .Items import ITEMS, PlateUpItem, APPLIANCE_UNLOCK_POOL, APPLIANCE_UNLOCK_PRIORITY, APPLIANCE_UNLOCK_ITEMS
 from .Locations import (
     DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS,
     SETTING_LOCATIONS, EXTRA_SETTING_LOCATIONS, BLUEPRINT_LOCATIONS,
@@ -20,7 +20,7 @@ from .Rules import (
 
 
 class PlateUpWorld(World):
-    game = "plateup"
+    game = "PlateUp"
     web = Web_World.PlateUpWebWorld()
     options_dataclass = PlateUpOptions
     options: PlateUpOptions
@@ -43,6 +43,7 @@ class PlateUpWorld(World):
         self.selected_dishes = []
         self.starting_dish = None
         self.valid_dish_locations = []
+        self.dishes_with_leases = []
 
     def generate_location_table(self):
         """Plan locations based on goal/options and selected dishes."""
@@ -291,11 +292,50 @@ class PlateUpWorld(World):
         # --- Day Lease items ---
         if self.options.day_leases_enabled.value:
             interval = max(1, int(self.options.day_lease_interval.value))
-            lease_count = math.ceil(total_days / interval)
-            item_pool.extend([
-                self.create_item("Day Lease", classification=ItemClassification.progression)
-                for _ in range(lease_count)
-            ])
+            _is_dish_specific = (
+                self.options.day_lease_mode.value == 1
+                and self.options.dish.value > 0
+                and self.selected_dishes
+            )
+            _is_goal2 = self.options.goal.value == Goal.option_reach_day_x_with_dishes
+
+            # Determine which dishes get lease items first — needed to compute overtime count.
+            if _is_dish_specific:
+                scope = self.options.dish_lease_scope.value
+                if scope == 1 and _is_goal2:
+                    dish_goal = min(self.options.dish_goal_count.value, len(self.selected_dishes))
+                    self.dishes_with_leases = list(self.selected_dishes[:dish_goal])
+                else:
+                    self.dishes_with_leases = list(self.selected_dishes)
+
+            if _is_dish_specific and _is_goal2:
+                # Goal 2 + dish_specific: dish leases are sufficient; no entrance lease gating.
+                pass
+            elif _is_dish_specific:
+                # Goals 0/1 + dish_specific: Overtime Day Lease covers only days above day 15.
+                # Each dish's lease chain reaches day 15, so overtime = days beyond that coverage.
+                overtime_days = max(0, total_days - 15 * len(self.dishes_with_leases))
+                overtime_lease_count = math.ceil(overtime_days / interval) if overtime_days > 0 else 0
+                item_pool.extend([
+                    self.create_item("Overtime Day Lease", ItemClassification.progression)
+                    for _ in range(overtime_lease_count)
+                ])
+            else:
+                # Global mode (any goal): regular Day Lease gates all days.
+                lease_count = math.ceil(total_days / interval)
+                item_pool.extend([
+                    self.create_item("Day Lease", ItemClassification.progression)
+                    for _ in range(lease_count)
+                ])
+
+            # Per-dish lease items gate {Dish} - Day X locations (dish checks cap at day 15).
+            if _is_dish_specific:
+                dish_lease_count = math.ceil(15 / interval)
+                for dish in self.dishes_with_leases:
+                    item_pool.extend([
+                        self.create_item(f"{dish} Day Lease", ItemClassification.progression)
+                        for _ in range(dish_lease_count)
+                    ])
 
         # --- Global Patience Increase items ---
         if self.options.global_patience_enabled.value:
@@ -384,10 +424,30 @@ class PlateUpWorld(World):
         _add_filler("Coin", coin_count)
         remaining -= coin_count
 
-        # --- Top off with appliance / decoration filler ---
+        # --- Top off with named appliance unlocks, then generic appliance / decoration filler ---
         remaining_final = max(0, total_locations - len(item_pool))
         use_decorations = self.options.decoration_unlocks.value
-        for i in range(remaining_final):
+
+        # Named appliance unlock items occupy as many filler slots as the pool_size allows,
+        # replacing an equivalent number of generic Random Appliance items.
+        if self.options.appliance_unlocks.value:
+            pool_size = min(
+                int(self.options.appliance_unlock_pool_size.value),
+                len(APPLIANCE_UNLOCK_POOL),
+                remaining_final,
+            )
+            priority = [a for a in APPLIANCE_UNLOCK_PRIORITY if a in APPLIANCE_UNLOCK_POOL]
+            non_priority = [a for a in APPLIANCE_UNLOCK_POOL if a not in priority]
+            self.multiworld.random.shuffle(non_priority)
+            selected_appliances = (priority + non_priority)[:pool_size]
+            for app_name in selected_appliances:
+                item_pool.append(self.create_item(f"Unlock {app_name}", ItemClassification.useful))
+            self.unlocked_appliances_list = [a for a in APPLIANCE_UNLOCK_POOL if a not in selected_appliances]
+        else:
+            selected_appliances = []
+            self.unlocked_appliances_list = list(APPLIANCE_UNLOCK_POOL)
+
+        for i in range(max(0, total_locations - len(item_pool))):
             if use_decorations and i % 3 == 2:
                 item_pool.append(self.create_item("Random Decoration Unlock", classification=ItemClassification.filler))
             elif i % 2 == 0:
@@ -461,36 +521,134 @@ class PlateUpWorld(World):
             "franchise_count",
             "day_count",
             "day_target",
+            "dish_goal_count",
             "death_link",
             "death_link_behavior",
             "appliance_speed_mode",
+            "player_speed_upgrade_count",
+            "appliance_speed_upgrade_count",
+            "day_leases_enabled",
             "day_lease_interval",
+            "day_lease_mode",
+            "dish_lease_scope",
+            "money_cap_enabled",
             "starting_money_cap",
+            "money_cap_increase_amount",
+            "money_cap_activation",
+            "appliance_unlocks",
+            "appliance_unlock_grants_appliance",
+            "unlocked_appliances_in_shop",
+            "decoration_unlocks",
+            "trap_weights",
+            "trap_chance",
+            "patience_filler_percent",
+            "customer_filler_percent",
+            "group_size_filler_percent",
+            "mess_reduction_percent",
+            "coin_filler_percent",
+            "setting_checks",
+            "setting_check_mode",
+            "setting_extra_checks",
+            "starting_cards",
+            "starting_cards_amount",
+            "starting_group_size",
+            "global_patience_enabled",
+            "global_patience_upgrade_count",
+            "global_patience_starting_debuff",
+            "achievement_check_mode",
+            "money_cap_increase_count",
+            "appliance_unlock_pool_size",
+            "blueprint_base_price",
+            "blueprint_price_increase",
+            "blueprint_check_count",
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
+        options_dict["extra_starting_cards"] = list(self.options.extra_starting_cards.value)
+        options_dict["free_starter_dishes"] = self.options.free_starter_dishes.value
         if self.options.dish.value == 0:
             options_dict["selected_dishes"] = []
+            options_dict["starting_dishes"] = []
             options_dict["starting_dish"] = None
         else:
             options_dict["starting_dish"] = getattr(self, "starting_dish", None)
+            options_dict["starting_dishes"] = getattr(self, "starting_dishes", [])
             options_dict["selected_dishes"] = getattr(self, "selected_dishes", [])
-            # Diagnostics: count of planned dish day locations included
             planned = getattr(self, "_location_name_to_id", {})
-            count = 0
-            for dish in options_dict["selected_dishes"]:
-                for day in range(1, 16):
-                    name = f"{dish} - Day {day}"
-                    if name in planned:
-                        count += 1
+            count = sum(
+                1 for dish in options_dict["selected_dishes"]
+                for day in range(1, 16)
+                if f"{dish} - Day {day}" in planned
+            )
             options_dict["dish_locations_present"] = count
-        # Diagnostics
+
+        # Blueprint check IDs: mapping of location name -> ID, matching the original format.
+        planned = getattr(self, "_location_name_to_id", {})
+        blueprint_ids = {
+            f"Blueprint Check {i}": planned[f"Blueprint Check {i}"]
+            for i in range(1, int(self.options.blueprint_check_count.value) + 1)
+            if f"Blueprint Check {i}" in planned
+        }
+        options_dict["blueprint_check_ids"] = blueprint_ids
+
+        # unlocked_appliances: appliances not assigned a named unlock item (pre-unlocked on the mod side)
+        options_dict["unlocked_appliances"] = getattr(self, "unlocked_appliances_list", list(APPLIANCE_UNLOCK_POOL))
+
+        # Dish unlock flag
         options_dict["dish_unlocks"] = 0 if self.options.dish.value == 0 else 1
+
+        # Setting check selected settings and location counts
+        if self.options.setting_checks.value:
+            self.set_selected_settings()
+            options_dict["selected_settings"] = getattr(self, "selected_settings", [])
+            planned = getattr(self, "_location_name_to_id", {})
+            count = sum(
+                1 for setting in options_dict["selected_settings"]
+                for day in range(1, 16)
+                if f"{setting} - Day {day}" in planned
+            )
+            options_dict["setting_locations_present"] = count
+        else:
+            options_dict["selected_settings"] = []
+            options_dict["setting_locations_present"] = 0
+
+        # Reroll max cost based on money cap settings
+        if self.options.money_cap_enabled.value:
+            if self.options.goal.value == Goal.option_franchise_x_times:
+                _rtd = 15 * int(self.options.franchise_count.value)
+            elif self.options.goal.value == Goal.option_reach_day_x_with_dishes:
+                _rtd = int(self.options.day_target.value)
+            else:
+                _rtd = int(self.options.day_count.value)
+            _sc = int(self.options.starting_money_cap.value)
+            _ca = int(self.options.money_cap_increase_amount.value)
+            _min_for_60 = max(0, math.ceil((60 - _sc) / _ca)) if _ca > 0 else 0
+            _cap_items = max(_rtd // 15 + 1, _min_for_60)
+            options_dict["reroll_max_cost"] = min(_sc + _ca * _cap_items, 300)
+        else:
+            options_dict["reroll_max_cost"] = 300
+
         return options_dict
 
     def get_filler_item_name(self):
         """Randomly select a filler item from the available candidates."""
         # Use the explicit filler placeholder to avoid ambiguity.
         return "Random Filler Appliance"
+
+    def set_selected_settings(self):
+        if not getattr(self.options, "setting_checks", None) or not self.options.setting_checks.value:
+            self.selected_settings = []
+            return
+        mode = self.options.setting_check_mode.value
+        extra_slugs = list(self.options.setting_extra_checks.value)
+        selected = []
+        if mode in (0, 1):  # base_only or base_and_extras
+            selected.append("Base Setting")
+        if mode in (1, 2):  # base_and_extras or extras_only
+            for slug in extra_slugs:
+                display = _setting_slug_to_display.get(slug)
+                if display and display not in selected:
+                    selected.append(display)
+        self.selected_settings = selected
 
     def set_selected_dishes(self):
         dish_count = self.options.dish.value
