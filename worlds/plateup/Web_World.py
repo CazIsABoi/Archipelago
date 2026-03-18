@@ -13,6 +13,7 @@ from .Options import (
     TrapChance, TrapWeights,
     SettingChecks, SettingCheckMode, SettingExtraChecks, AchievementCheckMode,
     BlueprintCheckCount, BlueprintBasePrice, BlueprintPriceIncrease,
+    RerollCheckCount,
     DeathLink, DeathLinkBehavior,
 )
 
@@ -42,6 +43,7 @@ option_groups = [
     OptionGroup("Checks", [
         SettingChecks, SettingCheckMode, SettingExtraChecks, AchievementCheckMode,
         BlueprintCheckCount, BlueprintBasePrice, BlueprintPriceIncrease,
+        RerollCheckCount,
     ]),
 ]
 

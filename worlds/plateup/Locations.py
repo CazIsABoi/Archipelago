@@ -141,3 +141,9 @@ for _s_idx, (_s_slug, _s_display) in enumerate(_setting_slug_to_display.items())
 BLUEPRINT_LOCATIONS: Dict[str, int] = {
     f"Blueprint Check {i}": 150000 + i for i in range(1, 101)
 }
+
+# ─── Reroll Cost Check Locations ───────────────────────────────────────────────
+# Range 130001–130100 (gap between star checks 120001–120334 and achievement checks 140001–140017)
+REROLL_LOCATIONS: Dict[str, int] = {
+    f"Reroll Cost Check {i}": 130000 + i for i in range(1, 101)
+}

@@ -532,6 +532,17 @@ class BlueprintPriceIncrease(Range):
     default = 10
 
 
+class RerollCheckCount(Range):
+    """How many reroll cost checks to add to the location pool.
+    On appliance shop days, rerolling the shop costs coins and sends a check each time.
+    Set to 0 to disable reroll cost checks entirely.
+    Location IDs are in the range 130001–130100."""
+    display_name = "Reroll Check Count"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
@@ -582,3 +593,4 @@ class PlateUpOptions(PerGameCommonOptions):
     blueprint_check_count: BlueprintCheckCount
     blueprint_base_price: BlueprintBasePrice
     blueprint_price_increase: BlueprintPriceIncrease
+    reroll_check_count: RerollCheckCount

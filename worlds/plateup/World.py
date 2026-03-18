@@ -8,7 +8,7 @@ from . import Web_World
 from .Items import ITEMS, PlateUpItem, APPLIANCE_UNLOCK_POOL, APPLIANCE_UNLOCK_PRIORITY, APPLIANCE_UNLOCK_ITEMS
 from .Locations import (
     DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS,
-    SETTING_LOCATIONS, EXTRA_SETTING_LOCATIONS, BLUEPRINT_LOCATIONS,
+    SETTING_LOCATIONS, EXTRA_SETTING_LOCATIONS, BLUEPRINT_LOCATIONS, REROLL_LOCATIONS,
     _setting_slug_to_display,
 )
 from .Options import PlateUpOptions, Goal, SettingCheckMode
@@ -34,6 +34,7 @@ class PlateUpWorld(World):
         **SETTING_LOCATIONS,
         **EXTRA_SETTING_LOCATIONS,
         **BLUEPRINT_LOCATIONS,
+        **REROLL_LOCATIONS,
     }
 
     def __init__(self, *args, **kwargs):
@@ -175,6 +176,14 @@ class PlateUpWorld(World):
                 bpname = f"Blueprint Check {i}"
                 if bpname in BLUEPRINT_LOCATIONS:
                     locs[bpname] = BLUEPRINT_LOCATIONS[bpname]
+
+        # Reroll cost check locations (all goals)
+        reroll_count = int(self.options.reroll_check_count.value)
+        if reroll_count > 0:
+            for i in range(1, reroll_count + 1):
+                rname = f"Reroll Cost Check {i}"
+                if rname in REROLL_LOCATIONS:
+                    locs[rname] = REROLL_LOCATIONS[rname]
 
         # Setting check locations (all goals)
         if self.options.setting_checks.value:
@@ -592,6 +601,9 @@ class PlateUpWorld(World):
 
         # unlocked_appliances: appliances not assigned a named unlock item (pre-unlocked on the mod side)
         options_dict["unlocked_appliances"] = getattr(self, "unlocked_appliances_list", list(APPLIANCE_UNLOCK_POOL))
+
+        # Reroll check count
+        options_dict["reroll_check_count"] = int(self.options.reroll_check_count.value)
 
         # Dish unlock flag
         options_dict["dish_unlocks"] = 0 if self.options.dish.value == 0 else 1
