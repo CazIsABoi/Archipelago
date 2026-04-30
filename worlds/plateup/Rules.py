@@ -11,9 +11,53 @@ from .Locations import (
     DISH_LOCATIONS,
     dish_dictionary
 )
+from .Items import APPLIANCE_UNLOCK_POOL
 
 if TYPE_CHECKING:
     from . import PlateUpWorld
+
+# All speed upgrade item names used across both upgrade modes.
+_SPEED_UPGRADE_ITEMS = [
+    "Speed Upgrade Player",
+    "Speed Upgrade Appliance",
+    "Speed Upgrade Cook",
+    "Speed Upgrade Chop",
+    "Speed Upgrade Clean",
+]
+
+
+def _build_block_rule(world: "PlateUpWorld", leases_required: int, lease_item: str):
+    """Return an access rule for a day-block gate with relaxed logic.
+
+    Passes if ANY of the following is true:
+    - The player has received ``leases_required`` copies of ``lease_item``
+      (existing behaviour).
+    - The player has received at least one speed upgrade of any kind.
+    - The player has received at least ``min(3, interval)`` named appliance
+      unlock items — only checked when the ``appliance_unlocks`` option is on.
+      The threshold scales down with the interval so that low intervals (e.g.
+      1 or 2) do not demand more appliances than the block naturally provides.
+    """
+    interval = max(1, int(world.options.day_lease_interval.value))
+    app_threshold = min(3, interval)
+    app_unlocks_on = bool(world.options.appliance_unlocks.value)
+    player = world.player
+
+    if app_unlocks_on:
+        def rule(state):
+            if state.has(lease_item, player, leases_required):
+                return True
+            if any(state.has(spd, player) for spd in _SPEED_UPGRADE_ITEMS):
+                return True
+            total = sum(state.count(f"Unlock {name}", player) for name in APPLIANCE_UNLOCK_POOL)
+            return total >= app_threshold
+    else:
+        def rule(state):
+            if state.has(lease_item, player, leases_required):
+                return True
+            return any(state.has(spd, player) for spd in _SPEED_UPGRADE_ITEMS)
+
+    return rule
 
 def set_rule(spot: Location | Entrance, rule):
     spot.access_rule = rule
@@ -53,6 +97,7 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
     leases_enabled = bool(world.options.day_leases_enabled.value)
     lease_mode = world.options.day_lease_mode.value
     dishes_with_leases = set(getattr(world, 'dishes_with_leases', []))
+    progressive = bool(world.options.day_leases_progressive.value)
 
     for i in range(len(dish_order) - 1):
         current_loc_name = dish_order[i]
@@ -74,21 +119,23 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                 if leases_enabled:
                     day_number = _extract_dish_day_number(next_loc_name)
                     if day_number:
-                        leases_required = max(0, (day_number - 1) // interval)
+                        if progressive:
+                            leases_required = math.ceil(day_number / interval)
+                        else:
+                            leases_required = max(0, (day_number - 1) // interval)
                         if leases_required > 0:
                             if lease_mode == 1 and dishes_with_leases:  # dish_specific
                                 dish_name = next_loc_name.rsplit(" - Day ", 1)[0]
                                 if dish_name in dishes_with_leases:
                                     add_rule(
                                         loc,
-                                        lambda state, item=f"{dish_name} Day Lease", req=leases_required:
-                                            state.has(item, world.player, req)
+                                        _build_block_rule(world, leases_required, f"{dish_name} Day Lease")
                                     )
                                 # else: dish is out of scope — no lease gating
                             else:  # global
                                 add_rule(
                                     loc,
-                                    lambda state, req=leases_required: state.has("Day Lease", world.player, req)
+                                    _build_block_rule(world, leases_required, "Day Lease")
                                 )
             except KeyError:
                 pass
@@ -180,6 +227,7 @@ def apply_rules(world: "PlateUpWorld"):
             required_franchises = 1
         interval = max(1, int(world.options.day_lease_interval.value))
         leases_enabled = bool(world.options.day_leases_enabled.value)
+        progressive = bool(world.options.day_leases_progressive.value)
         _is_dish_specific_franchise = (
             world.options.day_lease_mode.value == 1
             and world.options.dish.value > 0
@@ -209,7 +257,10 @@ def apply_rules(world: "PlateUpWorld"):
                 if _is_dish_specific_franchise and leases_enabled:
                     leases_required = max(0, math.ceil((global_day - 15 * _franchise_dishes_count) / interval))
                 elif leases_enabled:
-                    leases_required = (global_day - 1) // interval
+                    if progressive:
+                        leases_required = math.ceil(global_day / interval)
+                    else:
+                        leases_required = (global_day - 1) // interval
                 else:
                     leases_required = 0
 
@@ -220,17 +271,16 @@ def apply_rules(world: "PlateUpWorld"):
 
                 try:
                     loc_cur = world.get_location(cur_name)
+                    block_rule = _build_block_rule(world, leases_required, _franchise_lease_item) if leases_required > 0 else None
                     if prev_name is None:
                         if leases_required > 0:
-                            loc_cur.access_rule = (
-                                lambda state, req=leases_required, li=_franchise_lease_item: state.has(li, world.player, req)
-                            )
+                            loc_cur.access_rule = block_rule
                     else:
                         if leases_required > 0:
                             loc_cur.access_rule = (
-                                lambda state, p=prev_name, req=leases_required, li=_franchise_lease_item: (
+                                lambda state, p=prev_name, br=block_rule: (
                                     state.can_reach(p, "Location", world.player)
-                                    and state.has(li, world.player, req)
+                                    and br(state)
                                 )
                             )
                         else:

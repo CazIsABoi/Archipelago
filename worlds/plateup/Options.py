@@ -58,9 +58,10 @@ class DayLeasesEnabled(Toggle):
 
 
 class DayLeaseInterval(Range):
-    """How many days pass between each required Day Lease.
-    For example, a value of 5 means you need 1 lease to play days 1-5, 2 leases for days 6-10, and so on.
-    Lower values create more frequent progression gates; higher values result in larger, less frequent gates.
+    """How many days pass between each required Day Lease block.
+    With day_leases_progressive off (default): days 1-N are free, days N+1 to 2N require 1 lease, etc.
+    With day_leases_progressive on: days 1-N require 1 lease, days N+1 to 2N require 2, etc.
+    Lower values create more frequent, smaller progression gates; higher values create larger, rarer gates.
     Only relevant when day_leases_enabled is on."""
     display_name = "Day Lease Interval"
     range_start = 1
@@ -85,6 +86,17 @@ class DishLeaseScope(Choice):
     display_name = "Dish Lease Scope"
     option_all_dishes = 0
     option_goal_count_only = 1
+    default = 0
+
+
+class DayLeasesProgressive(Toggle):
+    """Make day leases act as progressive items: the first lease for each food/dish is required to play even Day 1.
+    When enabled, leases_required = ceil(day / interval) — every day block requires at least one lease, so the
+    first lease acts as an unlock, preventing players from starting a food freely and then being gated mid-run.
+    When disabled (default), the first block of days (1 to interval) is free, and leases gate subsequent blocks.
+    This can help prevent players from being locked out of foods after franchising elsewhere.
+    Only relevant when day_leases_enabled is on."""
+    display_name = "Progressive Day Leases"
     default = 0
 
 class DishCount(Range):
@@ -543,6 +555,24 @@ class RerollCheckCount(Range):
     default = 0
 
 
+class AllowSaveFileEditing(Toggle):
+    """Allow the client to make direct edits to your PlateUp save file.
+    Modifying player level (set to level 17), modifying garage.
+    When enabled, the client may write to your save file to apply these changes.
+    When disabled, no save file modifications are made. 
+    DOES NOTHING YET — this is a placeholder for future features that require save edits, and currently has no effect on generation or gameplay."""
+    display_name = "Allow Save File Editing"
+    default = 0
+
+
+class RandomResearch(Toggle):
+    """Enable random research mode.
+    When enabled, the research desk randomly researches into any appliance in the pool instead of the fixed progression path. 
+    When disabled, the research desk works as in vanilla."""
+    display_name = "Random Research"
+    default = 0
+
+
 @dataclass
 class PlateUpOptions(PerGameCommonOptions):
     goal: Goal
@@ -559,6 +589,7 @@ class PlateUpOptions(PerGameCommonOptions):
     day_lease_interval: DayLeaseInterval
     day_lease_mode: DayLeaseMode
     dish_lease_scope: DishLeaseScope
+    day_leases_progressive: DayLeasesProgressive
     player_speed_upgrade_count: PlayerSpeedUpgradeCount
     appliance_speed_upgrade_count: ApplianceSpeedUpgradeCount
     appliance_speed_mode: ApplianceSpeedMode
@@ -594,3 +625,5 @@ class PlateUpOptions(PerGameCommonOptions):
     blueprint_base_price: BlueprintBasePrice
     blueprint_price_increase: BlueprintPriceIncrease
     reroll_check_count: RerollCheckCount
+    allow_save_file_editing: AllowSaveFileEditing
+    random_research: RandomResearch

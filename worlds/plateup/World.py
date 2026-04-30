@@ -540,6 +540,7 @@ class PlateUpWorld(World):
             "day_lease_interval",
             "day_lease_mode",
             "dish_lease_scope",
+            "day_leases_progressive",
             "money_cap_enabled",
             "starting_money_cap",
             "money_cap_increase_amount",
@@ -570,6 +571,7 @@ class PlateUpWorld(World):
             "blueprint_base_price",
             "blueprint_price_increase",
             "blueprint_check_count",
+            "random_research",
         )
         options_dict["items_kept"] = self.options.appliances_kept.value
         options_dict["extra_starting_cards"] = list(self.options.extra_starting_cards.value)
@@ -622,6 +624,37 @@ class PlateUpWorld(World):
         else:
             options_dict["selected_settings"] = []
             options_dict["setting_locations_present"] = 0
+
+        # Day lease counts for client
+        if self.options.day_leases_enabled.value:
+            _interval = max(1, int(self.options.day_lease_interval.value))
+            _goal = self.options.goal.value
+            if _goal == Goal.option_franchise_x_times:
+                _total_days = 15 * int(self.options.franchise_count.value)
+            elif _goal == Goal.option_reach_day_x_with_dishes:
+                _total_days = int(self.options.day_target.value)
+            else:
+                _total_days = int(self.options.day_count.value)
+            _is_dish_specific = (
+                self.options.day_lease_mode.value == 1
+                and self.options.dish.value > 0
+                and bool(getattr(self, "selected_dishes", []))
+            )
+            _is_goal2 = _goal == Goal.option_reach_day_x_with_dishes
+            if _is_dish_specific:
+                options_dict["dish_lease_count"] = math.ceil(15 / _interval)
+                _dishes_with_leases = getattr(self, "dishes_with_leases", [])
+                if not _is_goal2:
+                    _overtime_days = max(0, _total_days - 15 * len(_dishes_with_leases))
+                    options_dict["day_lease_count"] = math.ceil(_overtime_days / _interval) if _overtime_days > 0 else 0
+                else:
+                    options_dict["day_lease_count"] = 0
+            else:
+                options_dict["day_lease_count"] = math.ceil(_total_days / _interval)
+                options_dict["dish_lease_count"] = 0
+        else:
+            options_dict["day_lease_count"] = 0
+            options_dict["dish_lease_count"] = 0
 
         # Reroll max cost based on money cap settings
         if self.options.money_cap_enabled.value:

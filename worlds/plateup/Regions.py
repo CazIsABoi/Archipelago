@@ -262,6 +262,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
                         pass
                     e.connect(lose_region)
                     loc = PlateUpLocation(world.player, "Lose a Run", lose_loc_id, parent=lose_region)
+                    loc.progress_type = LocationProgressType.EXCLUDED
                     lose_region.locations.append(loc)
                     progression_locs.append("Lose a Run")
         except Exception:
@@ -393,6 +394,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
                             pass
                         e.connect(lose_region)
                         loc = PlateUpLocation(world.player, "Lose a Run", lose_loc_id, parent=lose_region)
+                        loc.progress_type = LocationProgressType.EXCLUDED
                         lose_region.locations.append(loc)
                         progression_locs.append("Lose a Run")
         except Exception:

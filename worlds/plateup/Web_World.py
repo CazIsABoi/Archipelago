@@ -3,11 +3,11 @@ from worlds.AutoWorld import WebWorld
 from Options import OptionGroup
 from .Options import (
     Goal, FranchiseCount, DayCount, DayTarget, DishGoalCount, DishCount, FreeStarterDishes,
-    DayLeasesEnabled, DayLeaseInterval, DayLeaseMode, DishLeaseScope,
+    DayLeasesEnabled, DayLeaseInterval, DayLeasesProgressive, DayLeaseMode, DishLeaseScope,
     MoneyCapEnabled, StartingMoneyCap, MoneyCapIncreaseAmount, MoneyCapIncreaseCount, MoneyCapActivation,
     ApplianceUnlocks, ApplianceUnlockPoolSize, ApplianceUnlockGrantsAppliance, UnlockedAppliancesInShop,
     DecorationUnlocks, PlayerSpeedUpgradeCount, ApplianceSpeedUpgradeCount, ApplianceSpeedMode, ItemsKept,
-    StartingCards, StartingCardsAmount, ExtraStartingCards, StartingGroupSize,
+    RandomResearch, StartingCards, StartingCardsAmount, ExtraStartingCards, StartingGroupSize,
     GlobalPatienceEnabled, GlobalPatienceUpgradeCount, GlobalPatienceStartingDebuff,
     PatienceFillerPercent, CustomerFillerPercent, GroupSizeFillerPercent, MessReductionPercent, CoinFillerPercent,
     TrapChance, TrapWeights,
@@ -22,7 +22,7 @@ option_groups = [
         Goal, FranchiseCount, DayCount, DayTarget, DishGoalCount, DishCount, FreeStarterDishes,
     ]),
     OptionGroup("Progression Gates", [
-        DayLeasesEnabled, DayLeaseInterval, DayLeaseMode, DishLeaseScope,
+        DayLeasesEnabled, DayLeaseInterval, DayLeasesProgressive, DayLeaseMode, DishLeaseScope,
         MoneyCapEnabled, StartingMoneyCap, MoneyCapIncreaseAmount, MoneyCapIncreaseCount, MoneyCapActivation,
     ]),
     OptionGroup("Item Pool", [
@@ -30,7 +30,7 @@ option_groups = [
         DecorationUnlocks, PlayerSpeedUpgradeCount, ApplianceSpeedUpgradeCount, ApplianceSpeedMode, ItemsKept,
     ]),
     OptionGroup("Difficulty", [
-        StartingCards, StartingCardsAmount, ExtraStartingCards, StartingGroupSize,
+        RandomResearch, StartingCards, StartingCardsAmount, ExtraStartingCards, StartingGroupSize,
         GlobalPatienceEnabled, GlobalPatienceUpgradeCount, GlobalPatienceStartingDebuff,
         DeathLink, DeathLinkBehavior,
     ]),
