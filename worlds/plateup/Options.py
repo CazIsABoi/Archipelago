@@ -123,7 +123,8 @@ class FreeStarterDishes(Range):
 class ItemsKept(Range):
     """How many appliances you are allowed to keep when franchising.
     Higher values make each franchise run easier since you carry over more of your kitchen setup.
-    This is sent directly to the client and enforced in-game."""
+    This is sent directly to the client and enforced in-game.
+    Has no effect when allow_save_file_editing is enabled, as the client will manage appliance retention via save file edits instead."""
     display_name = "Appliances Kept Each Run"
     range_start = 1
     range_end = 5
@@ -559,8 +560,8 @@ class AllowSaveFileEditing(Toggle):
     """Allow the client to make direct edits to your PlateUp save file.
     Modifying player level (set to level 17), modifying garage.
     When enabled, the client may write to your save file to apply these changes.
-    When disabled, no save file modifications are made. 
-    DOES NOTHING YET — this is a placeholder for future features that require save edits, and currently has no effect on generation or gameplay."""
+    When disabled, no save file modifications are made.
+    Note: enabling this disables the appliances_kept option — items_kept will be sent as 0 and appliance retention will be handled via save file edits instead."""
     display_name = "Allow Save File Editing"
     default = 0
 

@@ -397,8 +397,20 @@ class PlateUpWorld(World):
                         if (name := _key_to_name.get(k)) and w > 0]
                 if pool:
                     names_list, ws_list = zip(*pool)
+                    _card_trap_names = {"Random Customer Card", "Card Swap"}
+                    _card_trap_cap = 20
+                    _card_trap_count = 0
                     for chosen in self.multiworld.random.choices(list(names_list), weights=list(ws_list), k=trap_count):
-                        item_pool.append(self.create_item(chosen, classification=ItemClassification.trap))
+                        if chosen in _card_trap_names:
+                            if _card_trap_count < _card_trap_cap:
+                                item_pool.append(self.create_item(chosen, classification=ItemClassification.trap))
+                                _card_trap_count += 1
+                        else:
+                            item_pool.append(self.create_item(chosen, classification=ItemClassification.trap))
+                    # Add one Remove Card per card trap placed, limited to available space
+                    _remove_budget = max(0, total_locations - len(item_pool))
+                    for _ in range(min(_card_trap_count, _remove_budget)):
+                        item_pool.append(self.create_item("Remove Card", classification=ItemClassification.progression))
 
         # --- Filler percent items (each consumes from remaining budget) ---
         def _add_filler(item_name: str, count: int, cls=ItemClassification.filler):
@@ -572,8 +584,9 @@ class PlateUpWorld(World):
             "blueprint_price_increase",
             "blueprint_check_count",
             "random_research",
+            "allow_save_file_editing",
         )
-        options_dict["items_kept"] = self.options.appliances_kept.value
+        options_dict["items_kept"] = 0 if self.options.allow_save_file_editing.value else self.options.appliances_kept.value
         options_dict["extra_starting_cards"] = list(self.options.extra_starting_cards.value)
         options_dict["free_starter_dishes"] = self.options.free_starter_dishes.value
         if self.options.dish.value == 0:
