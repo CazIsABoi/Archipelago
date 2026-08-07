@@ -31,7 +31,7 @@ ITEMS = {
     # when day_lease_mode = dish_specific. Dishes get their own named leases; the Overtime
     # lease gates higher day tiers in the non-dish progression ladder.
     "Overtime Day Lease": (32000, ItemClassification.progression),
-    "Money Cap Increase": (16, ItemClassification.useful),
+    "Money Cap Increase": (16, ItemClassification.progression),
 
 
 
@@ -95,7 +95,7 @@ except Exception:
 # ─── Dish-Specific Day Lease Items ────────────────────────────────────────────
 # Used when day_lease_mode = dish_specific. Each dish gets its own lease item
 # (e.g. "Fish Day Lease") that gates only that dish's day-location chain.
-# IDs: 31000 + dish_id  (31101 – 31117).
+# IDs: 31000 + dish_id  (31101 – 31118).
 try:
     from .Locations import dish_dictionary as _lease_dish_dict
     for _lease_id, _lease_name in _lease_dish_dict.items():
@@ -105,16 +105,13 @@ except Exception:
         101: "Salad", 102: "Steak", 103: "Burger", 104: "Coffee", 105: "Pizza",
         106: "Dumplings", 107: "Turkey", 108: "Pie", 109: "Cakes", 110: "Spaghetti",
         111: "Fish", 112: "Tacos", 113: "Hot Dogs", 114: "Breakfast", 115: "Stir Fry",
-        116: "Sandwiches", 117: "Sundaes",
+        116: "Sandwiches", 117: "Sundaes", 118: "Fajita",
     }.items():
         ITEMS[f"{_lease_name} Day Lease"] = (31000 + _lease_id, ItemClassification.progression)
 
 # ─── Appliance Unlock Pool ────────────────────────────────────────────────────
 # Priority appliances are always chosen first when building the randomised pool.
 # Names MUST match the keys used in the mod's ProgressionMapping dictionaries exactly.
-# TODO: Replace placeholder names with the full list from the mod's
-#       ProgressionMapping.usefulApplianceDictionary and fillerApplianceDictionary.
-#       The combined list should have at least ApplianceUnlockPoolSize.range_end (93) entries.
 
 APPLIANCE_UNLOCK_PRIORITY: List[str] = [
     "Hob", "Counter", "Sink", "Plate Stack", "Research Desk", "Conveyor Belt", "Grabber",

@@ -41,7 +41,12 @@ def build():
             if path.name == "archipelago.json":
                 continue  # we write the injected version below
             relative_path = f"{WORLD_NAME}/{path.relative_to(WORLD_DIR)}"
-            zf.write(path, relative_path)
+            if path.name == "Items.py":
+                content = path.read_text(encoding="utf-8")
+                content = content.replace('118: "Fajita",', '118: "Fajitas",')
+                zf.writestr(relative_path, content)
+            else:
+                zf.write(path, relative_path)
 
         # Write injected manifest
         zf.writestr(manifest_zip_path, json.dumps(manifest, indent=4))

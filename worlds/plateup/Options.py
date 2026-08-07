@@ -46,7 +46,7 @@ class DishGoalCount(Range):
     Only used when goal is set to reach_day_x_with_dishes."""
     display_name = "Required Dishes at Target Day"
     range_start = 1
-    range_end = 17
+    range_end = 18
     default = 3
 
 class DayLeasesEnabled(Toggle):
@@ -82,7 +82,11 @@ class DishLeaseScope(Choice):
     """When day_lease_mode is dish_specific, controls which dishes receive their own lease items.
     all_dishes: every selected dish gets its own set of Day Lease items, one block per dish.
     goal_count_only: only the first dish_goal_count dishes receive lease items; any remaining dishes have their day locations ungated by leases.
-    Only relevant when goal is reach_day_x_with_dishes, day_leases_enabled is on, and day_lease_mode is dish_specific."""
+    
+    NOTE: This setting only applies when goal is reach_day_x_with_dishes. For franchise_x_times and complete_x_days goals,
+    this setting is ignored and all_dishes behavior is always used.
+    
+    Only relevant when day_leases_enabled is on and day_lease_mode is dish_specific."""
     display_name = "Dish Lease Scope"
     option_all_dishes = 0
     option_goal_count_only = 1
@@ -105,7 +109,7 @@ class DishCount(Range):
     Setting this to 0 leaves all dishes permanently unlocked and disables all dish-related checks."""
     display_name = "Dish Count"
     range_start = 0
-    range_end = 17
+    range_end = 18
     default = 1
 
 
@@ -117,7 +121,7 @@ class FreeStarterDishes(Range):
     Only relevant when dish count is greater than 0."""
     display_name = "Free Starter Dishes"
     range_start = 0
-    range_end = 17
+    range_end = 18
     default = 1
 
 class ItemsKept(Range):
@@ -329,7 +333,7 @@ class SettingExtraChecks(OptionList):
 
 
 class StartingCards(Choice):
-    """Which difficulty tier of Customer Cards are automatically dealt at the start of every run.
+    """Which difficulty tier of Customer Cards are automatically dealt at the start of every Archipelago run, a seed is set when you join a new apworld.
     Customer Cards impose penalty rules on customers (e.g. impatience, larger groups).
     none: no starting cards, normal difficulty.
     easy: one or more easy cards are dealt each run.

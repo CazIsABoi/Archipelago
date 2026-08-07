@@ -19,6 +19,33 @@ from .Rules import (
 )
 
 
+def _get_dishes_with_leases(world: "PlateUpWorld") -> list[str]:
+    """Compute which dishes get day lease items based on goal and scope settings.
+    
+    Shared helper to avoid duplication between World.py and Regions.py.
+    Returns empty list if dish-specific mode is not active.
+    """
+    _is_dish_specific = (
+        world.options.day_lease_mode.value == 1
+        and world.options.dish.value > 0
+        and world.selected_dishes
+    )
+    
+    if not _is_dish_specific:
+        return []
+    
+    _is_goal2 = world.options.goal.value == Goal.option_reach_day_x_with_dishes
+    scope = world.options.dish_lease_scope.value
+    
+    if scope == 1 and _is_goal2:
+        # goal_count_only: only first N dishes get leases
+        dish_goal = min(world.options.dish_goal_count.value, len(world.selected_dishes))
+        return list(world.selected_dishes[:dish_goal])
+    else:
+        # all_dishes: all selected dishes get leases
+        return list(world.selected_dishes)
+
+
 class PlateUpWorld(World):
     game = "PlateUp"
     web = Web_World.PlateUpWebWorld()
@@ -219,6 +246,17 @@ class PlateUpWorld(World):
         from .Regions import create_plateup_regions
         # Ensure selected dishes are initialized
         self.set_selected_dishes()
+        
+        # BUG FIX #2: Validate dish_lease_scope setting
+        # dish_lease_scope only applies to goal type 2 (reach_day_x_with_dishes)
+        if (self.options.dish_lease_scope.value == 1 and  # goal_count_only
+            self.options.goal.value != Goal.option_reach_day_x_with_dishes):
+            logging.warning(
+                f"[PlateUp] Player {self.player_name}: dish_lease_scope is set to 'goal_count_only' "
+                f"but goal is not 'reach_day_x_with_dishes'. This setting only applies to goal type 2. "
+                f"It will be ignored and all selected dishes will receive lease items."
+            )
+        
         self._location_name_to_id = self.generate_location_table()
         self.validate_ids()
         create_plateup_regions(self)
@@ -294,7 +332,7 @@ class PlateUpWorld(World):
         if self.options.money_cap_enabled.value:
             cap_count = int(self.options.money_cap_increase_count.value)
             item_pool.extend([
-                self.create_item("Money Cap Increase", classification=ItemClassification.useful)
+                self.create_item("Money Cap Increase", classification=ItemClassification.progression)
                 for _ in range(cap_count)
             ])
 
@@ -307,15 +345,10 @@ class PlateUpWorld(World):
                 and self.selected_dishes
             )
             _is_goal2 = self.options.goal.value == Goal.option_reach_day_x_with_dishes
+            goal = self.options.goal.value
 
-            # Determine which dishes get lease items first — needed to compute overtime count.
-            if _is_dish_specific:
-                scope = self.options.dish_lease_scope.value
-                if scope == 1 and _is_goal2:
-                    dish_goal = min(self.options.dish_goal_count.value, len(self.selected_dishes))
-                    self.dishes_with_leases = list(self.selected_dishes[:dish_goal])
-                else:
-                    self.dishes_with_leases = list(self.selected_dishes)
+            # Use shared helper to determine which dishes get lease items
+            self.dishes_with_leases = _get_dishes_with_leases(self)
 
             if _is_dish_specific and _is_goal2:
                 # Goal 2 + dish_specific: dish leases are sufficient; no entrance lease gating.
@@ -338,7 +371,10 @@ class PlateUpWorld(World):
                 ])
 
             # Per-dish lease items gate {Dish} - Day X locations (dish checks cap at day 15).
-            if _is_dish_specific:
+            # BUG FIX #1: Only create per-dish leases when dish day locations actually exist.
+            # Goals 0 (franchise) and 1 (complete_x_days) can have dish day locations when dish > 0.
+            # Goal 2 (reach_day_x_with_dishes) always has dish day locations.
+            if _is_dish_specific and self.options.dish.value > 0:
                 dish_lease_count = math.ceil(15 / interval)
                 for dish in self.dishes_with_leases:
                     item_pool.extend([
@@ -717,7 +753,7 @@ class PlateUpWorld(World):
             all_dishes = [
                 "Salad", "Steak", "Burger", "Coffee", "Pizza", "Dumplings", "Turkey",
                 "Pie", "Cakes", "Spaghetti", "Fish", "Tacos", "Hot Dogs", "Breakfast", "Stir Fry",
-                "Sandwiches", "Sundaes"
+                "Sandwiches", "Sundaes", "Fajitas"
             ]
         if dish_count <= 0:
             self.selected_dishes = []

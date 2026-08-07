@@ -75,12 +75,12 @@ class TestReachDayWithDishesAllDishesMustBeActive(PlateUpTestBase):
 
 
 class TestReachDayMaxTarget(PlateUpTestBase):
-    """Reach Day 30 (maximum target) with all 17 dishes."""
+    """Reach Day 30 (maximum target) with all 18 dishes."""
     options = {
         "goal": 2,
         "day_target": 30,
-        "dish": 17,
-        "dish_goal_count": 17,
+        "dish": 18,
+        "dish_goal_count": 18,
     }
 
     def test_has_completion_condition(self) -> None:

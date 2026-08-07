@@ -59,6 +59,30 @@ def _build_block_rule(world: "PlateUpWorld", leases_required: int, lease_item: s
 
     return rule
 
+
+def _build_strict_lease_rule(world: "PlateUpWorld", leases_required: int, lease_item: str):
+    """Return a strict access rule requiring only the matching lease item count."""
+    player = world.player
+
+    def rule(state):
+        return state.has(lease_item, player, leases_required)
+
+    return rule
+
+
+def _build_speed_fallback_rule(world: "PlateUpWorld"):
+    """Return an access rule requiring at least one speed upgrade item.
+    
+    Used ONLY when day_leases_enabled=false as a fallback progression requirement.
+    Speed upgrades make early game significantly easier but provide less value later.
+    """
+    player = world.player
+
+    def rule(state):
+        return any(state.has(spd, player) for spd in _SPEED_UPGRADE_ITEMS)
+
+    return rule
+
 def set_rule(spot: Location | Entrance, rule):
     spot.access_rule = rule
 
@@ -115,28 +139,33 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
                         unlock_item = f"{dish_name} Unlock"
                         add_rule(loc, lambda state, item=unlock_item: state.has(item, world.player))
 
-                # Day Lease gating (only when leases are enabled)
-                if leases_enabled:
-                    day_number = _extract_dish_day_number(next_loc_name)
-                    if day_number:
-                        if progressive:
-                            leases_required = math.ceil(day_number / interval)
-                        else:
-                            leases_required = max(0, (day_number - 1) // interval)
-                        if leases_required > 0:
+                # Day Lease gating: strict when enabled, speed fallback when disabled
+                day_number = _extract_dish_day_number(next_loc_name)
+                if day_number:
+                    if progressive:
+                        leases_required = math.ceil(day_number / interval)
+                    else:
+                        leases_required = max(0, (day_number - 1) // interval)
+                    
+                    if leases_required > 0:
+                        if leases_enabled:
+                            # Strict lease gating when leases are enabled
                             if lease_mode == 1 and dishes_with_leases:  # dish_specific
                                 dish_name = next_loc_name.rsplit(" - Day ", 1)[0]
                                 if dish_name in dishes_with_leases:
                                     add_rule(
                                         loc,
-                                        _build_block_rule(world, leases_required, f"{dish_name} Day Lease")
+                                        _build_strict_lease_rule(world, leases_required, f"{dish_name} Day Lease")
                                     )
                                 # else: dish is out of scope — no lease gating
                             else:  # global
                                 add_rule(
                                     loc,
-                                    _build_block_rule(world, leases_required, "Day Lease")
+                                    _build_strict_lease_rule(world, leases_required, "Day Lease")
                                 )
+                        else:
+                            # Speed upgrade fallback when leases are disabled
+                            add_rule(loc, _build_speed_fallback_rule(world))
             except KeyError:
                 pass
 
@@ -236,7 +265,16 @@ def apply_rules(world: "PlateUpWorld"):
         _franchise_lease_item = "Overtime Day Lease" if _is_dish_specific_franchise else "Day Lease"
         # In overtime mode, count how many dishes have leases (mirrors Regions.py + World.py logic).
         # For franchise goal (goal 0), scope=goal_count_only is ignored \u2014 all dishes get leases.
-        _franchise_dishes_count = len(getattr(world, 'dishes_with_leases', [])) if _is_dish_specific_franchise else 0
+        if _is_dish_specific_franchise:
+            # Keep this aligned with World.create_items/Regions.create_plateup_regions:
+            # for franchise goal, all selected dishes get leases.
+            dishes_with_leases = getattr(world, 'dishes_with_leases', [])
+            if dishes_with_leases:
+                _franchise_dishes_count = len(dishes_with_leases)
+            else:
+                _franchise_dishes_count = len(getattr(world, 'selected_dishes', []))
+        else:
+            _franchise_dishes_count = 0
 
         def run_suffix(run: int) -> str:
             if run == 0:
@@ -271,7 +309,7 @@ def apply_rules(world: "PlateUpWorld"):
 
                 try:
                     loc_cur = world.get_location(cur_name)
-                    block_rule = _build_block_rule(world, leases_required, _franchise_lease_item) if leases_required > 0 else None
+                    block_rule = _build_strict_lease_rule(world, leases_required, _franchise_lease_item) if leases_required > 0 else None
                     if prev_name is None:
                         if leases_required > 0:
                             loc_cur.access_rule = block_rule
@@ -300,3 +338,51 @@ def apply_rules(world: "PlateUpWorld"):
             lose_loc.access_rule = lambda state: state.can_reach("Franchise - Complete First Day", "Location", world.player)
     except KeyError:
         pass
+
+    # Apply money cap rules to blueprint checks to prevent softlocks.
+    # Each blueprint check has a progressive cost; expensive checks require Money Cap Increase items.
+    if world.options.money_cap_enabled.value:
+        bp_count = int(world.options.blueprint_check_count.value)
+        if bp_count > 0:
+            starting_cap = int(world.options.starting_money_cap.value)
+            cap_increase_amount = int(world.options.money_cap_increase_amount.value)
+            cap_increase_count = int(world.options.money_cap_increase_count.value)
+            max_cap = starting_cap + cap_increase_amount * cap_increase_count
+            base_price = int(world.options.blueprint_base_price.value)
+            price_increase = int(world.options.blueprint_price_increase.value)
+            activation_mode = world.options.money_cap_activation.value
+            player = world.player
+            
+            # When activation is start_of_day, players can earn extra gold during service before cap applies.
+            # This "earning headroom" allows purchasing checks slightly above the hard cap.
+            # Use 60g for start_of_day mode (conservative estimate for in-day earning potential).
+            earning_headroom = 60 if activation_mode == 1 else 0  # 1 = start_of_day
+
+            for i in range(1, bp_count + 1):
+                bp_name = f"Blueprint Check {i}"
+                bp_cost = base_price + (i - 1) * price_increase
+                
+                # Calculate how many Money Cap Increase items are needed to afford this check.
+                # Account for earning headroom when activation is start_of_day.
+                effective_starting_cap = starting_cap + earning_headroom
+                
+                if bp_cost > effective_starting_cap:
+                    if cap_increase_amount > 0:
+                        # For "bonus checks" that cost more than the max achievable cap + headroom,
+                        # require ALL cap increases. These can only be obtained by maximizing both
+                        # cap increases and in-day earning.
+                        effective_max_cap = max_cap + earning_headroom
+                        if bp_cost > effective_max_cap:
+                            increases_needed = cap_increase_count
+                        else:
+                            increases_needed = math.ceil((bp_cost - effective_starting_cap) / cap_increase_amount)
+                        
+                        try:
+                            loc = world.get_location(bp_name)
+                            # Require the player to have received the necessary Money Cap Increase items
+                            loc.access_rule = (
+                                lambda state, req=increases_needed: 
+                                    state.has("Money Cap Increase", player, req)
+                            )
+                        except KeyError:
+                            pass

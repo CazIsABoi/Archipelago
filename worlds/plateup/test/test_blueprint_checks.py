@@ -63,3 +63,94 @@ class TestBlueprintChecksNoCapLimit(PlateUpTestBase):
         names = {loc.name for loc in self.multiworld.get_locations() if loc.player == self.player}
         for i in range(1, 21):
             self.assertIn(f"Blueprint Check {i}", names)
+
+
+class TestBlueprintChecksMoneyCapAccessRules(PlateUpTestBase):
+    """Test that expensive blueprint checks require Money Cap Increase items to prevent softlocks."""
+    options = {
+        "blueprint_check_count": 10,
+        "blueprint_base_price": 10,
+        "blueprint_price_increase": 20,
+        "money_cap_enabled": 1,
+        "starting_money_cap": 20,
+        "money_cap_increase_amount": 20,
+        "money_cap_increase_count": 5,
+        # check 1: 10g (within starting cap)
+        # check 2: 30g (needs 1 cap increase: 30-20=10, ceil(10/20)=1)
+        # check 3: 50g (needs 2 cap increases: 50-20=30, ceil(30/20)=2)
+        # check 6: 110g (needs 5 cap increases: 110-20=90, ceil(90/20)=5)
+    }
+
+    def test_cheap_check_no_cap_required(self) -> None:
+        """Blueprint Check 1 costs 10g, within starting cap of 20g."""
+        loc = self.multiworld.get_location("Blueprint Check 1", self.player)
+        self.assertTrue(self.multiworld.state.can_reach(loc, player=self.player))
+
+    def test_expensive_check_requires_cap_increases(self) -> None:
+        """Blueprint Check 2 costs 30g, requires 1 Money Cap Increase."""
+        loc = self.multiworld.get_location("Blueprint Check 2", self.player)
+        # Without any cap increases, should not be accessible
+        self.assertFalse(self.multiworld.state.can_reach(loc, player=self.player))
+        
+        # With 1 cap increase, should be accessible
+        self.collect_by_name("Money Cap Increase")
+        self.assertTrue(self.multiworld.state.can_reach(loc, player=self.player))
+
+    def test_very_expensive_check_requires_multiple_increases(self) -> None:
+        """Blueprint Check 6 costs 110g, requires multiple Money Cap Increases."""
+        loc = self.multiworld.get_location("Blueprint Check 6", self.player)
+        
+        # Without any cap increases, should not be accessible
+        self.assertFalse(self.multiworld.state.can_reach(loc, player=self.player))
+        
+        # With all 5 increases (cap = 120), accessible
+        for _ in range(5):
+            self.collect_by_name("Money Cap Increase")
+        self.assertTrue(self.multiworld.state.can_reach(loc, player=self.player))
+
+
+class TestBlueprintChecksStartOfDayEarningHeadroom(PlateUpTestBase):
+    """Test that start_of_day activation mode allows earning headroom for checks slightly above cap."""
+    options = {
+        "blueprint_check_count": 10,
+        "blueprint_base_price": 10,
+        "blueprint_price_increase": 25,
+        "money_cap_enabled": 1,
+        "starting_money_cap": 20,
+        "money_cap_increase_amount": 20,
+        "money_cap_increase_count": 5,
+        "money_cap_activation": 1,  # start_of_day mode
+        # With start_of_day + 60g earning headroom:
+        # check 1: 10g (within starting cap + headroom = 80g)
+        # check 3: 60g (within starting cap + headroom = 80g, no increases needed)
+        # check 4: 85g (needs 1 increase: 85-80=5, ceil(5/20)=1, giving cap 40+60=100)
+        # check 5: 110g (needs 2 increases: 110-80=30, ceil(30/20)=2, giving cap 60+60=120)
+    }
+
+    def test_check_within_earning_headroom_no_increases_needed(self) -> None:
+        """Blueprint Check 3 costs 60g, within starting cap (20g) + earning headroom (60g)."""
+        loc = self.multiworld.get_location("Blueprint Check 3", self.player)
+        # Should be accessible without any cap increases due to earning headroom
+        self.assertTrue(self.multiworld.state.can_reach(loc, player=self.player))
+
+    def test_check_above_headroom_requires_increases(self) -> None:
+        """Blueprint Check 4 costs 85g, requires cap increases even with earning headroom."""
+        loc = self.multiworld.get_location("Blueprint Check 4", self.player)
+        # Without cap increases, not accessible (20 + 60 = 80 < 85)
+        self.assertFalse(self.multiworld.state.can_reach(loc, player=self.player))
+        
+        # With 1 cap increase (cap = 40, effective = 100), now accessible
+        self.collect_by_name("Money Cap Increase")
+        self.assertTrue(self.multiworld.state.can_reach(loc, player=self.player))
+
+    def test_expensive_check_with_headroom(self) -> None:
+        """Blueprint Check 5 costs 110g, demonstrates headroom reduces required increases."""
+        loc = self.multiworld.get_location("Blueprint Check 5", self.player)
+        
+        # Without increases, not accessible (effective cap = 20+60 = 80 < 110)
+        self.assertFalse(self.multiworld.state.can_reach(loc, player=self.player))
+        
+        # With 2 increases (cap = 60, effective = 120), accessible
+        for _ in range(2):
+            self.collect_by_name("Money Cap Increase")
+        self.assertTrue(self.multiworld.state.can_reach(loc, player=self.player))

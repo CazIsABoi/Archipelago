@@ -19,6 +19,9 @@ from .Locations import (
 
 if TYPE_CHECKING:
     from . import PlateUpWorld
+    
+# Import after TYPE_CHECKING to avoid circular import
+from .World import _get_dishes_with_leases
 
 def create_plateup_regions(world: "PlateUpWorld"):
 
@@ -40,8 +43,11 @@ def create_plateup_regions(world: "PlateUpWorld"):
     # If overtime_days == 0 every day is already covered by dish leases — no entrance gating needed.
     # Goal 2 uses dish leases only; entrance rules never require a lease item.
     # Global mode: Day Lease (unchanged).
+    # When day_leases_enabled is false, no lease items are created, so skip lease gating entirely.
+    _leases_enabled = bool(world.options.day_leases_enabled.value)
     _is_dish_specific = (
-        world.options.day_lease_mode.value == 1
+        _leases_enabled
+        and world.options.day_lease_mode.value == 1
         and world.options.dish.value > 0
         and bool(getattr(world, 'selected_dishes', []))
     )
@@ -54,22 +60,19 @@ def create_plateup_regions(world: "PlateUpWorld"):
     else:
         _total_days_for_lease = int(world.options.day_count.value)
 
-    # Mirror World.py's dishes_with_leases computation (scope only applies for goal 2).
+    # Use shared helper to determine which dishes get lease items (BUG FIX #3)
+    dishes_with_leases_list = _get_dishes_with_leases(world)
+    _dishes_with_leases_count = len(dishes_with_leases_list)
+    
     if _is_dish_specific:
-        _scope = world.options.dish_lease_scope.value
-        if _scope == 1 and user_goal == 2:
-            _dishes_with_leases_count = min(
-                world.options.dish_goal_count.value, len(world.selected_dishes)
-            )
-        else:
-            _dishes_with_leases_count = len(world.selected_dishes)
         _overtime_days = max(0, _total_days_for_lease - 15 * _dishes_with_leases_count)
     else:
-        _dishes_with_leases_count = 0
         _overtime_days = 0
 
-    if _is_dish_specific and user_goal == 2:
-        _day_lease_item: str | None = None  # dish leases are sufficient for goal 2
+    if not _leases_enabled:
+        _day_lease_item: str | None = None  # No lease items when day_leases_enabled=false
+    elif _is_dish_specific and user_goal == 2:
+        _day_lease_item = None  # dish leases are sufficient for goal 2
     elif _is_dish_specific and _overtime_days > 0:
         _day_lease_item = "Overtime Day Lease"
     elif _is_dish_specific:
@@ -486,10 +489,26 @@ def create_plateup_regions(world: "PlateUpWorld"):
     # Add blueprint check and setting check locations to the progression region (all goals).
     # These are identified by checking which names in the planned location table are not yet placed.
     placed_names = {loc.name for r in world.multiworld.regions if r.player == world.player for loc in r.locations}
+
+    # Only these check families are intentionally always attached to Progression.
+    # Prevent accidentally placing unhandled core progression locations here.
+    optional_setting_prefixes = tuple(f"{display} - Day " for display in _setting_slug_to_display.values())
+
+    def is_progression_fallback_location(name: str) -> bool:
+        return (
+            name.startswith("Blueprint Check ")
+            or name.startswith("Reroll Cost Check ")
+            or name.startswith("Base Setting - Day ")
+            or name.startswith(optional_setting_prefixes)
+        )
+
     for loc_name, loc_id in world._location_name_to_id.items():
-        if loc_name not in placed_names:
-            loc = PlateUpLocation(world.player, loc_name, loc_id, parent=progression_region)
-            progression_region.locations.append(loc)
+        if loc_name in placed_names:
+            continue
+        if not is_progression_fallback_location(loc_name):
+            continue
+        loc = PlateUpLocation(world.player, loc_name, loc_id, parent=progression_region)
+        progression_region.locations.append(loc)
 
     # Provide progression locations both as names (legacy) and as Location objects
     # The Archipelago balancer expects `world.progression_locations` to be a list of
