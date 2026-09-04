@@ -70,6 +70,24 @@ def _build_strict_lease_rule(world: "PlateUpWorld", leases_required: int, lease_
     return rule
 
 
+def _build_franchise_dish_rule(world: "PlateUpWorld", leases_required: int):
+    """Require one usable dish and that same dish's leases for a franchise run."""
+    player = world.player
+    dishes = tuple(getattr(world, "selected_dishes", []))
+    free_starters = min(int(world.options.free_starter_dishes.value), len(dishes))
+    starting_dishes = set(dishes[:free_starters])
+
+    def rule(state):
+        for dish in dishes:
+            if dish not in starting_dishes and not state.has(f"{dish} Unlock", player):
+                continue
+            if leases_required <= 0 or state.has(f"{dish} Day Lease", player, leases_required):
+                return True
+        return False
+
+    return rule
+
+
 def _build_speed_fallback_rule(world: "PlateUpWorld"):
     """Return an access rule requiring at least one speed upgrade item.
     
@@ -224,11 +242,12 @@ def apply_rules(world: "PlateUpWorld"):
                 pass
     else:
         # Chain franchise goal completions
-        for i in range(2, 51):  # expanded to support up to 50 franchises
-            suffix = "" if i - 1 == 1 else f" {i-1}"
+        for i in range(1, 51):  # expanded to support up to 50 franchises
+            run = i - 1
+            suffix = "" if run == 0 else (" After Franchised" if run == 1 else f" After Franchised {run}")
             try:
                 loc = world.get_location(f"Franchise {i} times")
-                required_loc = f"Franchise - Complete Day 15 After Franchised{suffix}"
+                required_loc = f"Franchise - Complete Day 15{suffix}"
                 loc.access_rule = lambda state, req=required_loc: state.can_reach(req, "Location", world.player)
             except KeyError:
                 pass
@@ -263,19 +282,6 @@ def apply_rules(world: "PlateUpWorld"):
             and bool(getattr(world, 'selected_dishes', []))
         )
         _franchise_lease_item = "Overtime Day Lease" if _is_dish_specific_franchise else "Day Lease"
-        # In overtime mode, count how many dishes have leases (mirrors Regions.py + World.py logic).
-        # For franchise goal (goal 0), scope=goal_count_only is ignored \u2014 all dishes get leases.
-        if _is_dish_specific_franchise:
-            # Keep this aligned with World.create_items/Regions.create_plateup_regions:
-            # for franchise goal, all selected dishes get leases.
-            dishes_with_leases = getattr(world, 'dishes_with_leases', [])
-            if dishes_with_leases:
-                _franchise_dishes_count = len(dishes_with_leases)
-            else:
-                _franchise_dishes_count = len(getattr(world, 'selected_dishes', []))
-        else:
-            _franchise_dishes_count = 0
-
         def run_suffix(run: int) -> str:
             if run == 0:
                 return ""
@@ -293,7 +299,13 @@ def apply_rules(world: "PlateUpWorld"):
                 cur_name = f"Franchise - Complete {day_label(d)}{suff}"
                 global_day = run * 15 + d
                 if _is_dish_specific_franchise and leases_enabled:
-                    leases_required = max(0, math.ceil((global_day - 15 * _franchise_dishes_count) / interval))
+                    # Every franchise is a fresh Day 1-15 run. Match the client:
+                    # require one unlocked/starting dish and that dish's leases.
+                    leases_required = (
+                        math.ceil(d / interval)
+                        if progressive
+                        else max(0, (d - 1) // interval)
+                    )
                 elif leases_enabled:
                     if progressive:
                         leases_required = math.ceil(global_day / interval)
@@ -309,12 +321,15 @@ def apply_rules(world: "PlateUpWorld"):
 
                 try:
                     loc_cur = world.get_location(cur_name)
-                    block_rule = _build_strict_lease_rule(world, leases_required, _franchise_lease_item) if leases_required > 0 else None
+                    if _is_dish_specific_franchise and leases_enabled:
+                        block_rule = _build_franchise_dish_rule(world, leases_required)
+                    else:
+                        block_rule = _build_strict_lease_rule(world, leases_required, _franchise_lease_item) if leases_required > 0 else None
                     if prev_name is None:
-                        if leases_required > 0:
+                        if block_rule is not None:
                             loc_cur.access_rule = block_rule
                     else:
-                        if leases_required > 0:
+                        if block_rule is not None:
                             loc_cur.access_rule = (
                                 lambda state, p=prev_name, br=block_rule: (
                                     state.can_reach(p, "Location", world.player)
