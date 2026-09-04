@@ -353,8 +353,12 @@ class PlateUpWorld(World):
             if _is_dish_specific and _is_goal2:
                 # Goal 2 + dish_specific: dish leases are sufficient; no entrance lease gating.
                 pass
+            elif _is_dish_specific and goal == Goal.option_franchise_x_times:
+                # Franchise runs reset after Day 15 and are gated by the active
+                # dish's leases. They do not consume global overtime capacity.
+                pass
             elif _is_dish_specific:
-                # Goals 0/1 + dish_specific: Overtime Day Lease covers only days above day 15.
+                # Day-count goal + dish_specific: Overtime Day Lease covers only days above day 15.
                 # Each dish's lease chain reaches day 15, so overtime = days beyond that coverage.
                 overtime_days = max(0, total_days - 15 * len(self.dishes_with_leases))
                 overtime_lease_count = math.ceil(overtime_days / interval) if overtime_days > 0 else 0
@@ -693,7 +697,9 @@ class PlateUpWorld(World):
             if _is_dish_specific:
                 options_dict["dish_lease_count"] = math.ceil(15 / _interval)
                 _dishes_with_leases = getattr(self, "dishes_with_leases", [])
-                if not _is_goal2:
+                if _goal == Goal.option_franchise_x_times:
+                    options_dict["day_lease_count"] = 0
+                elif not _is_goal2:
                     _overtime_days = max(0, _total_days - 15 * len(_dishes_with_leases))
                     options_dict["day_lease_count"] = math.ceil(_overtime_days / _interval) if _overtime_days > 0 else 0
                 else:

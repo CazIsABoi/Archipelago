@@ -112,10 +112,8 @@ class TestGlobalLeaseMode(PlateUpTestBase):
         self.assertEqual(len(items), len(locs))
 
 
-class TestDishSpecificLeasesGoalNotReachDay(PlateUpTestBase):
-    """For franchise goal (goal 0) with dish_specific leases, Overtime Day Lease covers
-    only the days beyond dish-lease capacity (15 * num_dishes). With franchise_count=4 and
-    3 dishes: total_days=60, overtime_days=15, so ceil(15/5)=3 overtime leases."""
+class TestDishSpecificLeasesFranchiseGoal(PlateUpTestBase):
+    """Franchise runs reuse each selected dish's Day 1-15 lease progression."""
     options = {
         **_BASE_OPTIONS,
         "goal": 0,          # franchise
@@ -134,13 +132,11 @@ class TestDishSpecificLeasesGoalNotReachDay(PlateUpTestBase):
         # All 3 dishes get leases since goal != 2 overrides goal_count_only
         self.assertEqual(len(dish_leases), 9)  # 3 × ceil(15/5)
 
-    def test_overtime_leases_present_for_non_goal2(self) -> None:
-        """Goals 0/1 + dish_specific: Overtime Day Lease covers days > 15 * num_dishes.
-        franchise_count=4 → total_days=60; 3 dishes → overtime_days=15; ceil(15/5)=3.
-        No generic Day Lease items should be generated."""
+    def test_franchise_goal_has_no_global_leases(self) -> None:
+        """Franchise count does not turn fresh Day 1-15 runs into overtime days."""
         items = [i for i in self.multiworld.itempool if i.player == self.player]
         overtime_leases = [i for i in items if i.name == "Overtime Day Lease"]
-        self.assertEqual(len(overtime_leases), 3)
+        self.assertEqual(len(overtime_leases), 0)
         generic_leases = [i for i in items if i.name == "Day Lease"]
         self.assertEqual(len(generic_leases), 0)
 
