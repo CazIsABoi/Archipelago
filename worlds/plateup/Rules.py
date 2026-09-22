@@ -88,6 +88,37 @@ def _build_franchise_dish_rule(world: "PlateUpWorld", leases_required: int):
     return rule
 
 
+def _build_goal2_dish_rule(world: "PlateUpWorld", day: int):
+    """Require a dish that can actually start the requested goal-2 day."""
+    player = world.player
+    dishes = tuple(getattr(world, "selected_dishes", []))
+    starting_dishes = set(getattr(world, "starting_dishes", []))
+    dishes_with_leases = set(getattr(world, "dishes_with_leases", []))
+    interval = max(1, int(world.options.day_lease_interval.value))
+    max_dish_leases = math.ceil(15 / interval)
+    progressive = bool(world.options.day_leases_progressive.value)
+    lease_day = min(day, 15)
+
+    def rule(state):
+        for dish in dishes:
+            if dish not in starting_dishes and not state.has(f"{dish} Unlock", player):
+                continue
+            if dish not in dishes_with_leases:
+                return True
+
+            if progressive:
+                required = math.ceil(lease_day / interval)
+            else:
+                required = max(0, (day - 1) // interval)
+            required = min(required, max_dish_leases)
+
+            if required <= 0 or state.has(f"{dish} Day Lease", player, required):
+                return True
+        return False
+
+    return rule
+
+
 def _build_speed_fallback_rule(world: "PlateUpWorld"):
     """Return an access rule requiring at least one speed upgrade item.
     
@@ -215,14 +246,42 @@ def apply_rules(world: "PlateUpWorld"):
 
     if goal_type in (1, 2):
         # Chain day completions: each day requires the previous
-        for i in range(2, 1001):
+        first_day = 1 if goal_type == 2 else 2
+        for i in range(first_day, 1001):
             current_day = f"Complete Day {i}"
             prev_day = f"Complete Day {i-1}"
             try:
                 loc_current = world.get_location(current_day)
-                loc_current.access_rule = (
+                previous_rule = None if i == 1 else (
                     lambda state, p=prev_day: state.can_reach(p, "Location", world.player)
                 )
+
+                # Goal 2 is completed by distinct dish runs. Its generic day
+                # locations must therefore require a dish that the client can
+                # actually play. Without this rule, progressive mode considered
+                # Day 1 logically free and could place every starter-dish lease
+                # behind an impossible day check.
+                dish_rule = None
+                if goal_type == 2 and world.options.day_leases_enabled.value:
+                    interval = max(1, int(world.options.day_lease_interval.value))
+                    if world.options.day_leases_progressive.value:
+                        leases_required = math.ceil(i / interval)
+                    else:
+                        leases_required = max(0, (i - 1) // interval)
+
+                    if world.options.day_lease_mode.value == 1:
+                        dish_rule = _build_goal2_dish_rule(world, i)
+                    elif leases_required > 0:
+                        dish_rule = _build_strict_lease_rule(world, leases_required, "Day Lease")
+
+                if previous_rule is not None and dish_rule is not None:
+                    loc_current.access_rule = (
+                        lambda state, pr=previous_rule, dr=dish_rule: pr(state) and dr(state)
+                    )
+                elif previous_rule is not None:
+                    loc_current.access_rule = previous_rule
+                elif dish_rule is not None:
+                    loc_current.access_rule = dish_rule
             except KeyError:
                 pass
         # Chain star completions (each star requires previous star)
