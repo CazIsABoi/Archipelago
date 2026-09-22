@@ -6,7 +6,7 @@ class Goal(Choice):
     """Choose the win condition for your PlateUp run.
     franchise_x_times: Franchise your restaurant the required number of times (see franchise_count).
     complete_x_days: Survive and complete a set number of in-game days (see day_count).
-    reach_day_x_with_dishes: Reach a specific global day while having a minimum number of dishes active (see day_target and dish_goal_count)."""
+    reach_day_x_with_dishes: Reach a specific day with the required number of distinct dishes (see day_target and dish_goal_count)."""
     display_name = "Goal"
     option_franchise_x_times = 0
     option_complete_x_days = 1
@@ -32,8 +32,8 @@ class DayCount(Range):
     default = 10
 
 class DayTarget(Range):
-    """The global day number you must survive to in order to trigger completion.
-    You must reach this day with at least dish_goal_count dishes actively unlocked.
+    """The day number each qualifying dish must survive to in order to trigger completion.
+    At least dish_goal_count distinct dishes must each reach this day.
     Only used when goal is set to reach_day_x_with_dishes."""
     display_name = "Day Target"
     range_start = 15
@@ -41,7 +41,7 @@ class DayTarget(Range):
     default = 15
 
 class DishGoalCount(Range):
-    """How many dish unlocks must be in your possession when you reach the target day.
+    """How many distinct dishes must each reach the target day.
     Must not exceed the dish count option — if it does, generation will raise an error.
     Only used when goal is set to reach_day_x_with_dishes."""
     display_name = "Required Dishes at Target Day"
@@ -97,6 +97,7 @@ class DayLeasesProgressive(Toggle):
     """Make day leases act as progressive items: the first lease for each food/dish is required to play even Day 1.
     When enabled, leases_required = ceil(day / interval) — every day block requires at least one lease, so the
     first lease acts as an unlock, preventing players from starting a food freely and then being gated mid-run.
+    In dish_specific mode, free starter dishes receive that first required lease in starting inventory.
     When disabled (default), the first block of days (1 to interval) is free, and leases gate subsequent blocks.
     This can help prevent players from being locked out of foods after franchising elsewhere.
     Only relevant when day_leases_enabled is on."""

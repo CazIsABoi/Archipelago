@@ -89,3 +89,64 @@ class TestReachDayMaxTarget(PlateUpTestBase):
     def test_day_30_location_present(self) -> None:
         player_locations = {loc.name for loc in self.multiworld.get_locations() if loc.player == self.player}
         self.assertIn("Complete Day 30", player_locations)
+
+
+class TestReachDayWithProgressiveDishLeases(PlateUpTestBase):
+    """The AP completion condition must match the client's per-dish target runs."""
+    options = {
+        "goal": 2,
+        "day_target": 20,
+        "dish": 8,
+        "dish_goal_count": 6,
+        "free_starter_dishes": 1,
+        "day_leases_enabled": 1,
+        "day_lease_interval": 5,
+        "day_lease_mode": 1,
+        "dish_lease_scope": 0,
+        "day_leases_progressive": 1,
+    }
+
+    def test_unlocks_alone_do_not_complete_goal(self) -> None:
+        selected = self.world.selected_dishes
+        for dish in selected[1:6]:
+            self.collect_by_name(f"{dish} Unlock")
+
+        self.assertFalse(self.multiworld.completion_condition[self.player](self.multiworld.state))
+
+    def test_starter_begins_with_first_required_lease(self) -> None:
+        starter = self.world.starting_dishes[0]
+        lease = self.get_item_by_name(f"{starter} Day Lease")
+        pool_leases = self.get_items_by_name(f"{starter} Day Lease")
+
+        self.assertEqual(self.count(f"{starter} Day Lease"), 1)
+        self.assertEqual(len(pool_leases), 2)
+        self.assertTrue(self.can_reach_location("Complete Day 1"))
+        self.assertTrue(self.can_reach_location("Complete Day 5"))
+        self.assertFalse(self.can_reach_location("Complete Day 6"))
+
+        self.collect(lease)
+        self.assertTrue(self.can_reach_location("Complete Day 6"))
+        self.assertTrue(self.can_reach_location("Complete Day 10"))
+        self.assertFalse(self.can_reach_location("Complete Day 11"))
+
+    def test_unlocked_nonstarter_requires_lease_for_day_one(self) -> None:
+        from worlds.plateup.Rules import _build_goal2_dish_rule
+
+        dish = self.world.selected_dishes[1]
+        self.world.starting_dishes = []
+        rule = _build_goal2_dish_rule(self.world, 1)
+        self.collect_by_name(f"{dish} Unlock")
+        self.assertFalse(rule(self.multiworld.state))
+
+        self.collect(self.get_item_by_name(f"{dish} Day Lease"))
+        self.assertTrue(rule(self.multiworld.state))
+
+    def test_six_lease_ready_dishes_complete_goal(self) -> None:
+        selected = self.world.selected_dishes
+        for dish in selected[:6]:
+            if dish not in self.world.starting_dishes:
+                self.collect_by_name(f"{dish} Unlock")
+            self.collect_by_name(f"{dish} Day Lease")
+
+        self.assertEqual(self.count(f"{selected[0]} Day Lease"), 3)
+        self.assertTrue(self.multiworld.completion_condition[self.player](self.multiworld.state))
