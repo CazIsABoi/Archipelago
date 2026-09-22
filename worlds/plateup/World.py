@@ -353,8 +353,12 @@ class PlateUpWorld(World):
             if _is_dish_specific and _is_goal2:
                 # Goal 2 + dish_specific: dish leases are sufficient; no entrance lease gating.
                 pass
+            elif _is_dish_specific and goal == Goal.option_franchise_x_times:
+                # Franchise runs reset after Day 15 and are gated by the active
+                # dish's leases. They do not consume global overtime capacity.
+                pass
             elif _is_dish_specific:
-                # Goals 0/1 + dish_specific: Overtime Day Lease covers only days above day 15.
+                # Day-count goal + dish_specific: Overtime Day Lease covers only days above day 15.
                 # Each dish's lease chain reaches day 15, so overtime = days beyond that coverage.
                 overtime_days = max(0, total_days - 15 * len(self.dishes_with_leases))
                 overtime_lease_count = math.ceil(overtime_days / interval) if overtime_days > 0 else 0
@@ -377,9 +381,19 @@ class PlateUpWorld(World):
             if _is_dish_specific and self.options.dish.value > 0:
                 dish_lease_count = math.ceil(15 / interval)
                 for dish in self.dishes_with_leases:
+                    copies_in_pool = dish_lease_count
+                    if (self.options.day_leases_progressive.value
+                            and dish in self.starting_dishes):
+                        # Progressive dish leases require one copy for Day 1.
+                        # Give free starters that first copy up front so the
+                        # slot cannot begin with every playable dish locked.
+                        self.multiworld.push_precollected(
+                            self.create_item(f"{dish} Day Lease", ItemClassification.progression)
+                        )
+                        copies_in_pool -= 1
                     item_pool.extend([
                         self.create_item(f"{dish} Day Lease", ItemClassification.progression)
-                        for _ in range(dish_lease_count)
+                        for _ in range(copies_in_pool)
                     ])
 
         # --- Global Patience Increase items ---
@@ -550,12 +564,37 @@ class PlateUpWorld(World):
                 dish_goal = min(self.options.dish_goal_count.value, self.options.dish.value)
                 if dish_goal <= 0:
                     return True
-                starter_dishes = getattr(self, 'starting_dishes', [])
-                dishes_available = sum(
-                    1 for dish in getattr(self, 'selected_dishes', [])
-                    if dish in starter_dishes or state.has(f"{dish} Unlock", self.player)
-                )
-                return dishes_available >= dish_goal
+
+                starter_dishes = set(getattr(self, "starting_dishes", []))
+                selected_dishes = getattr(self, "selected_dishes", [])
+                leases_enabled = bool(self.options.day_leases_enabled.value)
+                dish_specific = leases_enabled and self.options.day_lease_mode.value == 1
+                dishes_with_leases = set(getattr(self, "dishes_with_leases", []))
+
+                # The client completes this goal only after distinct dishes have
+                # each reached day_target. Model whether every available dish can
+                # make that run; counting unlocks alone made the AP goal resolve
+                # before the client could possibly report completion.
+                interval = max(1, int(self.options.day_lease_interval.value))
+                max_dish_leases = math.ceil(15 / interval)
+                lease_day = min(int(day_target), 15)
+                if self.options.day_leases_progressive.value:
+                    required_dish_leases = math.ceil(lease_day / interval)
+                else:
+                    required_dish_leases = max(0, (lease_day - 1) // interval)
+
+                viable_dishes = 0
+                for dish in selected_dishes:
+                    if dish not in starter_dishes and not state.has(f"{dish} Unlock", self.player):
+                        continue
+                    dish_leases_required = required_dish_leases
+                    dish_leases_required = min(dish_leases_required, max_dish_leases)
+                    if (dish_specific and dish in dishes_with_leases
+                            and not state.has(f"{dish} Day Lease", self.player, dish_leases_required)):
+                        continue
+                    viable_dishes += 1
+
+                return viable_dishes >= dish_goal
 
         self.multiworld.completion_condition[self.player] = plateup_completion
         apply_rules(self)
@@ -693,7 +732,9 @@ class PlateUpWorld(World):
             if _is_dish_specific:
                 options_dict["dish_lease_count"] = math.ceil(15 / _interval)
                 _dishes_with_leases = getattr(self, "dishes_with_leases", [])
-                if not _is_goal2:
+                if _goal == Goal.option_franchise_x_times:
+                    options_dict["day_lease_count"] = 0
+                elif not _is_goal2:
                     _overtime_days = max(0, _total_days - 15 * len(_dishes_with_leases))
                     options_dict["day_lease_count"] = math.ceil(_overtime_days / _interval) if _overtime_days > 0 else 0
                 else:

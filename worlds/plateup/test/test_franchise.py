@@ -43,17 +43,30 @@ class TestFranchiseLeaseStrictness(PlateUpTestBase):
         "day_leases_enabled": 1,
         "day_lease_interval": 4,
         "day_lease_mode": 1,  # dish_specific
-        "dish": 1,
+        "day_leases_progressive": 1,
+        "dish": 2,
         "free_starter_dishes": 1,
     }
 
-    def test_post_franchise_requires_overtime_lease(self) -> None:
+    def test_post_franchise_requires_usable_dish_and_matching_lease(self) -> None:
         loc = self.world.get_location("Franchise - Complete First Day After Franchised")
+        starter_dish, unlockable_dish = self.world.selected_dishes
 
         no_items = _MockState()
         speed_only = _MockState({"Speed Upgrade Cook": 1})
-        lease_only = _MockState({"Overtime Day Lease": 1})
+        overtime_only = _MockState({"Overtime Day Lease": 1})
+        locked_dish_lease_only = _MockState({f"{unlockable_dish} Day Lease": 1})
+        starter_lease = _MockState({f"{starter_dish} Day Lease": 1})
+        unlock_only = _MockState({f"{unlockable_dish} Unlock": 1})
+        unlocked_dish_lease = _MockState({
+            f"{unlockable_dish} Unlock": 1,
+            f"{unlockable_dish} Day Lease": 1,
+        })
 
         self.assertFalse(loc.access_rule(no_items))
         self.assertFalse(loc.access_rule(speed_only))
-        self.assertTrue(loc.access_rule(lease_only))
+        self.assertFalse(loc.access_rule(overtime_only))
+        self.assertFalse(loc.access_rule(locked_dish_lease_only))
+        self.assertTrue(loc.access_rule(starter_lease))
+        self.assertFalse(loc.access_rule(unlock_only))
+        self.assertTrue(loc.access_rule(unlocked_dish_lease))

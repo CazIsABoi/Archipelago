@@ -4,7 +4,7 @@ import math
 import re
 from typing import TYPE_CHECKING
 
-from BaseClasses import Region, LocationProgressType, Entrance 
+from BaseClasses import Region, LocationProgressType, Entrance
 from .Locations import (
     PlateUpLocation,
     EXCLUDED_LOCATIONS,
@@ -64,15 +64,20 @@ def create_plateup_regions(world: "PlateUpWorld"):
     dishes_with_leases_list = _get_dishes_with_leases(world)
     _dishes_with_leases_count = len(dishes_with_leases_list)
     
-    if _is_dish_specific:
+    if _is_dish_specific and user_goal == 0:
+        # Franchise runs reset to Day 1 after Day 15. The client therefore uses
+        # the active dish's leases again for every run; selected dishes do not
+        # provide a pool of global-day coverage and these runs are not overtime.
+        _overtime_days = 0
+    elif _is_dish_specific:
         _overtime_days = max(0, _total_days_for_lease - 15 * _dishes_with_leases_count)
     else:
         _overtime_days = 0
 
     if not _leases_enabled:
         _day_lease_item: str | None = None  # No lease items when day_leases_enabled=false
-    elif _is_dish_specific and user_goal == 2:
-        _day_lease_item = None  # dish leases are sufficient for goal 2
+    elif _is_dish_specific and user_goal in (0, 2):
+        _day_lease_item = None  # active-dish leases gate franchise/goal-2 days
     elif _is_dish_specific and _overtime_days > 0:
         _day_lease_item = "Overtime Day Lease"
     elif _is_dish_specific:
@@ -161,7 +166,8 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 prev_r.exits.append(e)
 
                 prev_label = day_label(15)  # "Day 15"
-                # Entering next run Day 1 corresponds to global day 15*run + 16
+                # Global mode additionally keeps its cumulative Day Lease
+                # requirement. Dish-specific leases reset with each new run.
                 req = leases_required_for(run + 1, 1)
                 prev_suff = suff
 
@@ -171,7 +177,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
                             state.can_reach(f"Franchise - Complete {pl}{ps}", "Location", world.player)
                             and state.has(lit, world.player, req)
                         )
-                    return lambda state: state.can_reach(f"Franchise - Complete {pl}{ps}", "Location", world.player)
+                    return lambda state: state.can_reach(
+                        f"Franchise - Complete {pl}{ps}", "Location", world.player
+                    )
 
                 e.access_rule = next_run_rule_factory()
                 try:
