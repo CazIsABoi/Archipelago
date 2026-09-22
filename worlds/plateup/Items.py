@@ -27,9 +27,9 @@ ITEMS = {
 
     #region progression
     "Day Lease": (15, ItemClassification.progression),
-    # Overtime Day Lease: used in place of Day Lease for goals 0/1 (franchise/day-count)
-    # when day_lease_mode = dish_specific. Dishes get their own named leases; the Overtime
-    # lease gates higher day tiers in the non-dish progression ladder.
+    # Overtime Day Lease: no longer created by generation (the flat "Complete Day N" chain
+    # is always gated by Day Lease regardless of day_lease_mode). Kept registered so the
+    # item ID stays reserved and old client saves referencing it don't break.
     "Overtime Day Lease": (32000, ItemClassification.progression),
     "Money Cap Increase": (16, ItemClassification.progression),
 

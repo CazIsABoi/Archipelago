@@ -9,6 +9,8 @@ from .Items import ITEMS, PlateUpItem, APPLIANCE_UNLOCK_POOL, APPLIANCE_UNLOCK_P
 from .Locations import (
     DISH_LOCATIONS, FRANCHISE_LOCATION_DICT, DAY_LOCATION_DICT, EXCLUDED_LOCATIONS,
     SETTING_LOCATIONS, EXTRA_SETTING_LOCATIONS, BLUEPRINT_LOCATIONS, REROLL_LOCATIONS,
+    ACHIEVEMENT_LOCATIONS, ACHIEVEMENT_NAME_TO_IDENTIFIER, ACHIEVEMENT_DAY_REQUIREMENTS,
+    APPLIANCE_GATED_ACHIEVEMENTS,
     _setting_slug_to_display,
 )
 from .Options import PlateUpOptions, Goal, SettingCheckMode
@@ -46,6 +48,21 @@ def _get_dishes_with_leases(world: "PlateUpWorld") -> list[str]:
         return list(world.selected_dishes)
 
 
+def _get_total_days(world: "PlateUpWorld") -> int:
+    """Compute the total reachable day count for the current goal.
+
+    Shared helper so item scaling, achievement gating, slot data, and Regions.py's
+    lease-entrance gating all agree on the goal-to-day-count mapping.
+    """
+    goal = world.options.goal.value
+    if goal == Goal.option_franchise_x_times:
+        return 15 * int(world.options.franchise_count.value)
+    elif goal == Goal.option_reach_day_x_with_dishes:
+        return int(world.options.day_target.value)
+    else:
+        return int(world.options.day_count.value)
+
+
 class PlateUpWorld(World):
     game = "PlateUp"
     web = Web_World.PlateUpWebWorld()
@@ -62,6 +79,7 @@ class PlateUpWorld(World):
         **EXTRA_SETTING_LOCATIONS,
         **BLUEPRINT_LOCATIONS,
         **REROLL_LOCATIONS,
+        **ACHIEVEMENT_LOCATIONS,
     }
 
     def __init__(self, *args, **kwargs):
@@ -227,6 +245,19 @@ class PlateUpWorld(World):
                             if sname in EXTRA_SETTING_LOCATIONS:
                                 locs[sname] = EXTRA_SETTING_LOCATIONS[sname]
 
+        # Achievement check locations (all goals)
+        achievement_mode = self.options.achievement_check_mode.value
+        if achievement_mode != 2:  # not "none"
+            total_days = _get_total_days(self)
+            appliance_unlocks_enabled = bool(self.options.appliance_unlocks.value)
+            for name, identifier in ACHIEVEMENT_NAME_TO_IDENTIFIER.items():
+                day_requirement = ACHIEVEMENT_DAY_REQUIREMENTS.get(identifier)
+                if day_requirement is not None and total_days < day_requirement:
+                    continue
+                if achievement_mode == 1 and identifier in APPLIANCE_GATED_ACHIEVEMENTS and not appliance_unlocks_enabled:
+                    continue
+                locs[name] = ACHIEVEMENT_LOCATIONS[name]
+
         return locs
 
     def validate_ids(self):
@@ -320,13 +351,7 @@ class PlateUpWorld(World):
                     ])
 
         # --- Determine total days for item scale ---
-        goal = self.options.goal.value
-        if goal == Goal.option_franchise_x_times:
-            total_days = 15 * int(self.options.franchise_count.value)
-        elif goal == Goal.option_reach_day_x_with_dishes:
-            total_days = int(self.options.day_target.value)
-        else:
-            total_days = int(self.options.day_count.value)
+        total_days = _get_total_days(self)
 
         # --- Money Cap Increase ---
         if self.options.money_cap_enabled.value:
@@ -344,31 +369,22 @@ class PlateUpWorld(World):
                 and self.options.dish.value > 0
                 and self.selected_dishes
             )
-            _is_goal2 = self.options.goal.value == Goal.option_reach_day_x_with_dishes
-            goal = self.options.goal.value
 
             # Use shared helper to determine which dishes get lease items
             self.dishes_with_leases = _get_dishes_with_leases(self)
 
-            if _is_dish_specific and _is_goal2:
-                # Goal 2 + dish_specific: dish leases are sufficient; no entrance lease gating.
-                pass
-            elif _is_dish_specific:
-                # Goals 0/1 + dish_specific: Overtime Day Lease covers only days above day 15.
-                # Each dish's lease chain reaches day 15, so overtime = days beyond that coverage.
-                overtime_days = max(0, total_days - 15 * len(self.dishes_with_leases))
-                overtime_lease_count = math.ceil(overtime_days / interval) if overtime_days > 0 else 0
-                item_pool.extend([
-                    self.create_item("Overtime Day Lease", ItemClassification.progression)
-                    for _ in range(overtime_lease_count)
-                ])
-            else:
-                # Global mode (any goal): regular Day Lease gates all days.
-                lease_count = math.ceil(total_days / interval)
-                item_pool.extend([
-                    self.create_item("Day Lease", ItemClassification.progression)
-                    for _ in range(lease_count)
-                ])
+            # The flat "Complete Day N" chain is always gated by a Day Lease pool sized to
+            # the goal's total day count, regardless of day_lease_mode. Per-dish leases
+            # (below) are a SEPARATE pacing currency that only gates each dish's own
+            # "{Dish} - Day N" chain — they must never be relied on to gate the flat chain,
+            # since dish_lease_scope=goal_count_only can leave too few dish leases in the
+            # pool to ever reach a large day_count/day_target (previously this let players
+            # reach "Complete Day N" — and therefore the goal itself — with zero items).
+            lease_count = math.ceil(total_days / interval)
+            item_pool.extend([
+                self.create_item("Day Lease", ItemClassification.progression)
+                for _ in range(lease_count)
+            ])
 
             # Per-dish lease items gate {Dish} - Day X locations (dish checks cap at day 15).
             # BUG FIX #1: Only create per-dish leases when dish day locations actually exist.
@@ -674,45 +690,27 @@ class PlateUpWorld(World):
             options_dict["selected_settings"] = []
             options_dict["setting_locations_present"] = 0
 
-        # Day lease counts for client
+        # Day lease counts for client.
+        # day_lease_count always reflects the flat Day Lease pool (gates "Complete Day N"),
+        # regardless of day_lease_mode. dish_lease_count is the separate per-dish pacing
+        # currency, only present in dish-specific mode.
         if self.options.day_leases_enabled.value:
             _interval = max(1, int(self.options.day_lease_interval.value))
-            _goal = self.options.goal.value
-            if _goal == Goal.option_franchise_x_times:
-                _total_days = 15 * int(self.options.franchise_count.value)
-            elif _goal == Goal.option_reach_day_x_with_dishes:
-                _total_days = int(self.options.day_target.value)
-            else:
-                _total_days = int(self.options.day_count.value)
+            _total_days = _get_total_days(self)
             _is_dish_specific = (
                 self.options.day_lease_mode.value == 1
                 and self.options.dish.value > 0
                 and bool(getattr(self, "selected_dishes", []))
             )
-            _is_goal2 = _goal == Goal.option_reach_day_x_with_dishes
-            if _is_dish_specific:
-                options_dict["dish_lease_count"] = math.ceil(15 / _interval)
-                _dishes_with_leases = getattr(self, "dishes_with_leases", [])
-                if not _is_goal2:
-                    _overtime_days = max(0, _total_days - 15 * len(_dishes_with_leases))
-                    options_dict["day_lease_count"] = math.ceil(_overtime_days / _interval) if _overtime_days > 0 else 0
-                else:
-                    options_dict["day_lease_count"] = 0
-            else:
-                options_dict["day_lease_count"] = math.ceil(_total_days / _interval)
-                options_dict["dish_lease_count"] = 0
+            options_dict["day_lease_count"] = math.ceil(_total_days / _interval)
+            options_dict["dish_lease_count"] = math.ceil(15 / _interval) if _is_dish_specific else 0
         else:
             options_dict["day_lease_count"] = 0
             options_dict["dish_lease_count"] = 0
 
         # Reroll max cost based on money cap settings
         if self.options.money_cap_enabled.value:
-            if self.options.goal.value == Goal.option_franchise_x_times:
-                _rtd = 15 * int(self.options.franchise_count.value)
-            elif self.options.goal.value == Goal.option_reach_day_x_with_dishes:
-                _rtd = int(self.options.day_target.value)
-            else:
-                _rtd = int(self.options.day_count.value)
+            _rtd = _get_total_days(self)
             _sc = int(self.options.starting_money_cap.value)
             _ca = int(self.options.money_cap_increase_amount.value)
             _min_for_60 = max(0, math.ceil((60 - _sc) / _ca)) if _ca > 0 else 0

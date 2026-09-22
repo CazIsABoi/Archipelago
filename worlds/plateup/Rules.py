@@ -11,7 +11,6 @@ from .Locations import (
     DISH_LOCATIONS,
     dish_dictionary
 )
-from .Items import APPLIANCE_UNLOCK_POOL
 
 if TYPE_CHECKING:
     from . import PlateUpWorld
@@ -24,40 +23,6 @@ _SPEED_UPGRADE_ITEMS = [
     "Speed Upgrade Chop",
     "Speed Upgrade Clean",
 ]
-
-
-def _build_block_rule(world: "PlateUpWorld", leases_required: int, lease_item: str):
-    """Return an access rule for a day-block gate with relaxed logic.
-
-    Passes if ANY of the following is true:
-    - The player has received ``leases_required`` copies of ``lease_item``
-      (existing behaviour).
-    - The player has received at least one speed upgrade of any kind.
-    - The player has received at least ``min(3, interval)`` named appliance
-      unlock items — only checked when the ``appliance_unlocks`` option is on.
-      The threshold scales down with the interval so that low intervals (e.g.
-      1 or 2) do not demand more appliances than the block naturally provides.
-    """
-    interval = max(1, int(world.options.day_lease_interval.value))
-    app_threshold = min(3, interval)
-    app_unlocks_on = bool(world.options.appliance_unlocks.value)
-    player = world.player
-
-    if app_unlocks_on:
-        def rule(state):
-            if state.has(lease_item, player, leases_required):
-                return True
-            if any(state.has(spd, player) for spd in _SPEED_UPGRADE_ITEMS):
-                return True
-            total = sum(state.count(f"Unlock {name}", player) for name in APPLIANCE_UNLOCK_POOL)
-            return total >= app_threshold
-    else:
-        def rule(state):
-            if state.has(lease_item, player, leases_required):
-                return True
-            return any(state.has(spd, player) for spd in _SPEED_UPGRADE_ITEMS)
-
-    return rule
 
 
 def _build_strict_lease_rule(world: "PlateUpWorld", leases_required: int, lease_item: str):
@@ -129,11 +94,16 @@ def restrict_locations_by_progression(world: "PlateUpWorld"):
         if next_loc_name in world.location_name_to_id and current_loc_name in world.location_name_to_id:
             try:
                 loc = world.get_location(next_loc_name)
-                # Next requires reaching the previous
-                add_rule(loc, lambda state, cur=current_loc_name: state.can_reach(cur, "Location", world.player))
+                is_new_dish_start = next_loc_name.endswith(" - Day 1")
 
-                # If next is Day 1 of a non-starting dish, require Unlock
-                if next_loc_name.endswith(" - Day 1"):
+                if not is_new_dish_start:
+                    # Next day within the same dish requires reaching the previous day.
+                    # Day 1 of each dish starts its own chain — it must NOT require the
+                    # previous dish's last day, or dishes stop being independent tracks
+                    # (dish_order is one flat list spanning every selected dish back to back).
+                    add_rule(loc, lambda state, cur=current_loc_name: state.can_reach(cur, "Location", world.player))
+                else:
+                    # If next is Day 1 of a non-starting dish, require Unlock
                     dish_name = next_loc_name.rsplit(" - Day ", 1)[0]
                     if dish_name not in starting_dishes:
                         unlock_item = f"{dish_name} Unlock"
@@ -193,88 +163,68 @@ def filter_selected_dishes(world: "PlateUpWorld"):
     world.valid_dish_locations = valid_locs
 
 def apply_rules(world: "PlateUpWorld"):
+    from .World import _get_total_days  # deferred import avoids a circular import with World.py
+
     goal_type = world.options.goal.value
 
     if goal_type in (1, 2):
-        # Chain day completions: each day requires the previous
-        for i in range(2, 1001):
+        # Chain day completions: each day requires the previous.
+        # Bounded by the goal's actual day count/target — every "Complete Day i" up to
+        # that bound is guaranteed to exist (see generate_location_table), so no
+        # try/except KeyError scaffolding is needed here.
+        total_days = _get_total_days(world)
+        for i in range(2, total_days + 1):
             current_day = f"Complete Day {i}"
             prev_day = f"Complete Day {i-1}"
-            try:
-                loc_current = world.get_location(current_day)
-                loc_current.access_rule = (
-                    lambda state, p=prev_day: state.can_reach(p, "Location", world.player)
-                )
-            except KeyError:
-                pass
-        # Chain star completions (each star requires previous star)
+            loc_current = world.get_location(current_day)
+            loc_current.access_rule = (
+                lambda state, p=prev_day: state.can_reach(p, "Location", world.player)
+            )
+        # Chain star completions (each star requires previous star).
+        # Must match generate_location_table's max_stars formula exactly (required_days // 3)
+        # or this will try to chain a "Complete Star" location that was never created.
         if goal_type == 1:
-            max_stars = (world.options.day_count.value + 2) // 3
+            max_stars = world.options.day_count.value // 3
         else:
             max_stars = world.options.day_target.value // 3
         for i in range(2, max_stars + 1):
             current_star = f"Complete Star {i}"
             prev_star = f"Complete Star {i-1}"
-            try:
-                loc_current = world.get_location(current_star)
-                loc_current.access_rule = (
-                    lambda state, p=prev_star: state.can_reach(p, "Location", world.player)
-                )
-            except KeyError:
-                pass
+            loc_current = world.get_location(current_star)
+            loc_current.access_rule = (
+                lambda state, p=prev_star: state.can_reach(p, "Location", world.player)
+            )
     else:
+        # Bounded by the configured franchise_count — matches generate_location_table's
+        # goal==0 branch exactly, so every location referenced below is guaranteed to exist.
+        required_franchises = int(world.options.franchise_count.value)
+
         # Chain franchise goal completions
-        for i in range(2, 51):  # expanded to support up to 50 franchises
+        for i in range(2, required_franchises + 1):
             suffix = "" if i - 1 == 1 else f" {i-1}"
-            try:
-                loc = world.get_location(f"Franchise {i} times")
-                required_loc = f"Franchise - Complete Day 15 After Franchised{suffix}"
-                loc.access_rule = lambda state, req=required_loc: state.can_reach(req, "Location", world.player)
-            except KeyError:
-                pass
+            loc = world.get_location(f"Franchise {i} times")
+            required_loc = f"Franchise - Complete Day 15 After Franchised{suffix}"
+            loc.access_rule = lambda state, req=required_loc: state.can_reach(req, "Location", world.player)
         # Chain stars within each franchise run (each star after the first requires the previous in same run)
         star_labels = ["First Star", "Second Star", "Third Star", "Fourth Star", "Fifth Star"]
-        for run in range(50):  # runs 0..49
+        for run in range(required_franchises):
             suffix = "" if run == 0 else (" After Franchised" if run == 1 else f" After Franchised {run}")
             # Build full names
             for idx in range(1, len(star_labels)):
                 prev_name = f"Franchise - {star_labels[idx-1]}{suffix}"
                 cur_name = f"Franchise - {star_labels[idx]}{suffix}"
-                try:
-                    loc_current = world.get_location(cur_name)
-                    loc_current.access_rule = (
-                        lambda state, p=prev_name: state.can_reach(p, "Location", world.player)
-                    )
-                except KeyError:
-                    pass
+                loc_current = world.get_location(cur_name)
+                loc_current.access_rule = (
+                    lambda state, p=prev_name: state.can_reach(p, "Location", world.player)
+                )
 
-        # Gate franchise day completion locations by the appropriate lease item.
-        # In dish_specific mode Overtime Day Lease is used; otherwise regular Day Lease.
-        try:
-            required_franchises = int(world.options.franchise_count.value)
-        except Exception:
-            required_franchises = 1
+        # Gate franchise day completion locations by the Day Lease item. This always uses
+        # the flat Day Lease pool, matching Regions.py's entrance gating \u2014 dish-specific
+        # leases are a separate currency that only gates each dish's own day chain.
         interval = max(1, int(world.options.day_lease_interval.value))
         leases_enabled = bool(world.options.day_leases_enabled.value)
         progressive = bool(world.options.day_leases_progressive.value)
-        _is_dish_specific_franchise = (
-            world.options.day_lease_mode.value == 1
-            and world.options.dish.value > 0
-            and bool(getattr(world, 'selected_dishes', []))
-        )
-        _franchise_lease_item = "Overtime Day Lease" if _is_dish_specific_franchise else "Day Lease"
-        # In overtime mode, count how many dishes have leases (mirrors Regions.py + World.py logic).
-        # For franchise goal (goal 0), scope=goal_count_only is ignored \u2014 all dishes get leases.
-        if _is_dish_specific_franchise:
-            # Keep this aligned with World.create_items/Regions.create_plateup_regions:
-            # for franchise goal, all selected dishes get leases.
-            dishes_with_leases = getattr(world, 'dishes_with_leases', [])
-            if dishes_with_leases:
-                _franchise_dishes_count = len(dishes_with_leases)
-            else:
-                _franchise_dishes_count = len(getattr(world, 'selected_dishes', []))
-        else:
-            _franchise_dishes_count = 0
+        _franchise_lease_item = "Day Lease"
 
         def run_suffix(run: int) -> str:
             if run == 0:
@@ -292,9 +242,7 @@ def apply_rules(world: "PlateUpWorld"):
             for d in range(1, 16):
                 cur_name = f"Franchise - Complete {day_label(d)}{suff}"
                 global_day = run * 15 + d
-                if _is_dish_specific_franchise and leases_enabled:
-                    leases_required = max(0, math.ceil((global_day - 15 * _franchise_dishes_count) / interval))
-                elif leases_enabled:
+                if leases_enabled:
                     if progressive:
                         leases_required = math.ceil(global_day / interval)
                     else:

@@ -39,12 +39,14 @@ class TestDishSpecificLeasesAllDishes(PlateUpTestBase):
         # 3 dishes × ceil(15/5) = 3 × 3 = 9
         self.assertEqual(len(dish_leases), 9)
 
-    def test_generic_lease_items_still_present(self) -> None:
-        """Goal 2 + dish_specific: entrance rules have no lease gating, so no generic
-        Day Lease or Overtime Day Lease items are generated — only the per-dish leases."""
+    def test_day_lease_items_still_present(self) -> None:
+        """The flat Complete Day N chain is always gated by the Day Lease pool, regardless
+        of day_lease_mode — dish leases only gate each dish's own day chain. Previously
+        goal 2 + dish_specific created zero Day Lease items, leaving Complete Day N (and
+        therefore the goal itself) reachable with no items at all."""
         items = [i for i in self.multiworld.itempool if i.player == self.player]
         global_leases = [i for i in items if i.name == "Day Lease"]
-        self.assertEqual(len(global_leases), 0)
+        self.assertEqual(len(global_leases), 4)  # ceil(20/5)
         overtime_leases = [i for i in items if i.name == "Overtime Day Lease"]
         self.assertEqual(len(overtime_leases), 0)
 
@@ -52,6 +54,35 @@ class TestDishSpecificLeasesAllDishes(PlateUpTestBase):
         locs = self.multiworld.get_locations(self.player)
         items = [i for i in self.multiworld.itempool if i.player == self.player]
         self.assertEqual(len(items), len(locs))
+
+
+class TestDishSpecificLeasesAreIndependent(PlateUpTestBase):
+    """Regression test: each dish's day chain must be independently reachable — giving one
+    dish's own items must not require unlocking a different dish first.
+
+    Previously, restrict_locations_by_progression chained dish day-locations as one flat
+    list spanning every selected dish back-to-back, so the second dish's Day 1 silently
+    required reaching the first dish's Day 15, defeating the point of dish_specific mode."""
+    options = {
+        **_BASE_OPTIONS,
+        "dish": 2,
+        "dish_goal_count": 1,
+        "free_starter_dishes": 1,
+        "day_lease_mode": 1,   # dish_specific
+        "dish_lease_scope": 0,  # all_dishes
+    }
+
+    def test_second_dish_day1_reachable_without_first_dish_items(self) -> None:
+        dish1, dish2 = self.world.selected_dishes[0], self.world.selected_dishes[1]
+        # Give only what the second dish needs for itself.
+        self.collect_by_name([f"{dish2} Unlock", f"{dish2} Day Lease"])
+        self.assertTrue(
+            self.can_reach_location(f"{dish2} - Day 1"),
+            f"{dish2} - Day 1 should be reachable with only {dish2}'s own items"
+        )
+        # Sanity check: the first dish's later days are still gated (we gave it nothing),
+        # confirming the test setup isn't accidentally granting blanket access.
+        self.assertFalse(self.can_reach_location(f"{dish1} - Day 15"))
 
 
 class TestDishSpecificLeasesGoalCountOnly(PlateUpTestBase):
@@ -72,11 +103,12 @@ class TestDishSpecificLeasesGoalCountOnly(PlateUpTestBase):
         # 3 dishes × ceil(15/5) = 9
         self.assertEqual(len(dish_leases), 9)
 
-    def test_generic_leases_still_present(self) -> None:
-        """Goal 2 + dish_specific: no generic Day Lease or Overtime Day Lease generated."""
+    def test_day_leases_still_present(self) -> None:
+        """The flat Complete Day N chain is gated by Day Lease regardless of dish_lease_scope
+        — goal_count_only only affects which dishes get per-dish leases, not this pool."""
         items = [i for i in self.multiworld.itempool if i.player == self.player]
         global_leases = [i for i in items if i.name == "Day Lease"]
-        self.assertEqual(len(global_leases), 0)  # goal 2 + dish_specific = no generic leases
+        self.assertEqual(len(global_leases), 4)  # ceil(20/5)
         overtime_leases = [i for i in items if i.name == "Overtime Day Lease"]
         self.assertEqual(len(overtime_leases), 0)
 
@@ -113,9 +145,9 @@ class TestGlobalLeaseMode(PlateUpTestBase):
 
 
 class TestDishSpecificLeasesGoalNotReachDay(PlateUpTestBase):
-    """For franchise goal (goal 0) with dish_specific leases, Overtime Day Lease covers
-    only the days beyond dish-lease capacity (15 * num_dishes). With franchise_count=4 and
-    3 dishes: total_days=60, overtime_days=15, so ceil(15/5)=3 overtime leases."""
+    """For franchise goal (goal 0) with dish_specific leases, the flat Complete Day N chain
+    is gated by the Day Lease pool sized to the full total_days (franchise_count=4 → 60
+    days → ceil(60/5)=12), independent of dish-specific lease coverage."""
     options = {
         **_BASE_OPTIONS,
         "goal": 0,          # franchise
@@ -134,15 +166,14 @@ class TestDishSpecificLeasesGoalNotReachDay(PlateUpTestBase):
         # All 3 dishes get leases since goal != 2 overrides goal_count_only
         self.assertEqual(len(dish_leases), 9)  # 3 × ceil(15/5)
 
-    def test_overtime_leases_present_for_non_goal2(self) -> None:
-        """Goals 0/1 + dish_specific: Overtime Day Lease covers days > 15 * num_dishes.
-        franchise_count=4 → total_days=60; 3 dishes → overtime_days=15; ceil(15/5)=3.
-        No generic Day Lease items should be generated."""
+    def test_day_leases_present_for_non_goal2(self) -> None:
+        """franchise_count=4 → total_days=60 → ceil(60/5)=12 Day Lease items.
+        Overtime Day Lease is never generated any more (superseded by Day Lease)."""
         items = [i for i in self.multiworld.itempool if i.player == self.player]
-        overtime_leases = [i for i in items if i.name == "Overtime Day Lease"]
-        self.assertEqual(len(overtime_leases), 3)
         generic_leases = [i for i in items if i.name == "Day Lease"]
-        self.assertEqual(len(generic_leases), 0)
+        self.assertEqual(len(generic_leases), 12)
+        overtime_leases = [i for i in items if i.name == "Overtime Day Lease"]
+        self.assertEqual(len(overtime_leases), 0)
 
     def test_item_location_balance(self) -> None:
         locs = self.multiworld.get_locations(self.player)
@@ -151,9 +182,9 @@ class TestDishSpecificLeasesGoalNotReachDay(PlateUpTestBase):
 
 
 class TestDishSpecificLeasesGoal1Overtime(PlateUpTestBase):
-    """Goal 1 (complete_x_days) with dish_specific: day_count=50, 3 dishes, interval=5.
-    overtime_days = max(0, 50 - 15*3) = 5; ceil(5/5) = 1 overtime lease.
-    This matches the user’s worked example."""
+    """Goal 1 (complete_x_days) with dish_specific: day_count=50, interval=5.
+    The flat Complete Day N chain is gated by Day Lease sized to the full day_count
+    (ceil(50/5)=10), independent of how many dishes have their own per-dish leases."""
     options = {
         **_BASE_OPTIONS,
         "goal": 1,          # complete_x_days
@@ -165,13 +196,13 @@ class TestDishSpecificLeasesGoal1Overtime(PlateUpTestBase):
         "dish_lease_scope": 0,  # all_dishes
     }
 
-    def test_one_overtime_lease_generated(self) -> None:
-        """The user’s example: 50 days, 3 dishes, interval 5 → 1 overtime lease."""
+    def test_day_leases_generated(self) -> None:
+        """50 days, interval 5 → ceil(50/5)=10 Day Lease items; no Overtime Day Lease."""
         items = [i for i in self.multiworld.itempool if i.player == self.player]
-        overtime_leases = [i for i in items if i.name == "Overtime Day Lease"]
-        self.assertEqual(len(overtime_leases), 1)
         generic_leases = [i for i in items if i.name == "Day Lease"]
-        self.assertEqual(len(generic_leases), 0)
+        self.assertEqual(len(generic_leases), 10)
+        overtime_leases = [i for i in items if i.name == "Overtime Day Lease"]
+        self.assertEqual(len(overtime_leases), 0)
 
     def test_dish_leases_present(self) -> None:
         items = [i for i in self.multiworld.itempool if i.player == self.player]

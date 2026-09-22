@@ -1,6 +1,5 @@
 # Regions.py
 import logging
-import math
 import re
 from typing import TYPE_CHECKING
 
@@ -19,9 +18,7 @@ from .Locations import (
 
 if TYPE_CHECKING:
     from . import PlateUpWorld
-    
-# Import after TYPE_CHECKING to avoid circular import
-from .World import _get_dishes_with_leases
+
 
 def create_plateup_regions(world: "PlateUpWorld"):
 
@@ -34,51 +31,16 @@ def create_plateup_regions(world: "PlateUpWorld"):
     progression_region.connect(dish_region)
 
     user_goal = world.options.goal.value
-    progression_locs = []
 
-    # Determine which item (if any) gates day-tier progression entrances.
-    # Dish-specific mode: each dish's lease items cover that dish's day chain (days 1-15).
-    # Overtime Day Lease covers days that exceed dish-lease capacity:
-    #   overtime_days = max(0, total_days - 15 * num_dishes_with_leases)
-    # If overtime_days == 0 every day is already covered by dish leases — no entrance gating needed.
-    # Goal 2 uses dish leases only; entrance rules never require a lease item.
-    # Global mode: Day Lease (unchanged).
-    # When day_leases_enabled is false, no lease items are created, so skip lease gating entirely.
+    # The flat "Complete Day N" chain is always gated by the Day Lease pool, regardless of
+    # day_lease_mode — dish-specific leases are a separate currency that only gates each
+    # dish's own "{Dish} - Day N" chain (see restrict_locations_by_progression in Rules.py).
+    # Relying on dish leases to gate this chain previously let players reach a late
+    # "Complete Day N" (and therefore the goal itself, for goals 1/2) with zero items,
+    # since dish_lease_scope=goal_count_only can leave too few dish leases in the pool to
+    # ever cover a large day_count/day_target.
     _leases_enabled = bool(world.options.day_leases_enabled.value)
-    _is_dish_specific = (
-        _leases_enabled
-        and world.options.day_lease_mode.value == 1
-        and world.options.dish.value > 0
-        and bool(getattr(world, 'selected_dishes', []))
-    )
-
-    # Mirror World.py's total_days computation.
-    if user_goal == 0:
-        _total_days_for_lease = 15 * int(world.options.franchise_count.value)
-    elif user_goal == 2:
-        _total_days_for_lease = int(world.options.day_target.value)
-    else:
-        _total_days_for_lease = int(world.options.day_count.value)
-
-    # Use shared helper to determine which dishes get lease items (BUG FIX #3)
-    dishes_with_leases_list = _get_dishes_with_leases(world)
-    _dishes_with_leases_count = len(dishes_with_leases_list)
-    
-    if _is_dish_specific:
-        _overtime_days = max(0, _total_days_for_lease - 15 * _dishes_with_leases_count)
-    else:
-        _overtime_days = 0
-
-    if not _leases_enabled:
-        _day_lease_item: str | None = None  # No lease items when day_leases_enabled=false
-    elif _is_dish_specific and user_goal == 2:
-        _day_lease_item = None  # dish leases are sufficient for goal 2
-    elif _is_dish_specific and _overtime_days > 0:
-        _day_lease_item = "Overtime Day Lease"
-    elif _is_dish_specific:
-        _day_lease_item = None  # dish leases cover every day — no extra gating needed
-    else:
-        _day_lease_item = "Day Lease"
+    _day_lease_item: str | None = "Day Lease" if _leases_enabled else None
 
     if user_goal == 0:
         # Franchise goal: Build per-run, per-day regions with chained entrances and lease requirements.
@@ -118,11 +80,8 @@ def create_plateup_regions(world: "PlateUpWorld"):
         included_names = set()
 
         # Helper to compute leases requirement based on global day number (run*15 + d).
-        # In overtime mode, only global days beyond the dish-lease cap require a lease.
         def leases_required_for(run: int, d: int) -> int:
             global_day = run * 15 + d
-            if _day_lease_item == "Overtime Day Lease":
-                return max(0, math.ceil((global_day - 15 * _dishes_with_leases_count) / interval))
             return (global_day - 1) // interval
 
         # Chain within runs and across runs
@@ -191,11 +150,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
                     continue
                 r = run_day_regions[(run, d)]
                 loc = PlateUpLocation(world.player, name, loc_id, parent=r)
-                loc.sphere = (run * 15 + d - 1) // interval
                 if loc_id in EXCLUDED_LOCATIONS:
                     loc.progress_type = LocationProgressType.EXCLUDED
                 r.locations.append(loc)
-                progression_locs.append(name)
                 included_names.add(name)
 
             # Also create Star regions and connect from the day where they occur (3,6,9,12,15)
@@ -222,11 +179,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 e.connect(star_region)
 
                 loc = PlateUpLocation(world.player, name, loc_id, parent=star_region)
-                loc.sphere = (run * 15 + star_day - 1) // interval
                 if loc_id in EXCLUDED_LOCATIONS:
                     loc.progress_type = LocationProgressType.EXCLUDED
                 star_region.locations.append(loc)
-                progression_locs.append(name)
                 included_names.add(name)
 
         # Place franchise milestone locations (Franchise i times) in the last day of that franchise (day 15)
@@ -237,11 +192,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
                 continue
             r = run_day_regions[(i - 1, 15)]
             loc = PlateUpLocation(world.player, name, loc_id, parent=r)
-            loc.sphere = (i * 15 - 1) // interval  # last day of that franchise
             if loc_id in EXCLUDED_LOCATIONS:
                 loc.progress_type = LocationProgressType.EXCLUDED
             r.locations.append(loc)
-            progression_locs.append(name)
             included_names.add(name)
 
         # Ensure the single global "Lose a Run" location exists and is gated by completing Day 1.
@@ -267,7 +220,6 @@ def create_plateup_regions(world: "PlateUpWorld"):
                     loc = PlateUpLocation(world.player, "Lose a Run", lose_loc_id, parent=lose_region)
                     loc.progress_type = LocationProgressType.EXCLUDED
                     lose_region.locations.append(loc)
-                    progression_locs.append("Lose a Run")
         except Exception:
             pass
 
@@ -307,12 +259,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
             prev_region.exits.append(e)
 
             # Leases required to ENTER day d.
-            # In overtime mode, only days that exceed dish-lease coverage need a lease;
-            # earlier days have req=0 (always satisfiable) since dish leases cover them.
-            if _day_lease_item == "Overtime Day Lease":
-                leases_required = max(0, math.ceil((day - 15 * _dishes_with_leases_count) / interval))
-            else:
-                leases_required = (day - 1) // interval
+            leases_required = (day - 1) // interval
 
             # Access requires completion of previous day (location sits in source region => safe)
             def entrance_rule_factory(d=day, req=leases_required, lit=_day_lease_item):
@@ -338,12 +285,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
             if loc_id is None:
                 continue
             loc = PlateUpLocation(world.player, loc_name, loc_id, parent=day_regions[day])
-            # Sphere based on lease interval, not hardcoded 5-day blocks
-            loc.sphere = (day - 1) // interval
             if loc_id in EXCLUDED_LOCATIONS:
                 loc.progress_type = LocationProgressType.EXCLUDED
             day_regions[day].locations.append(loc)
-            progression_locs.append(loc_name)
 
         # Create Star regions and connect from their respective day (star*3)
         for star in range(1, max_stars + 1):
@@ -370,11 +314,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
             e.connect(star_region)
 
             loc = PlateUpLocation(world.player, loc_name, loc_id, parent=star_region)
-            loc.sphere = (target_day - 1) // interval
             if loc_id in EXCLUDED_LOCATIONS:
                 loc.progress_type = LocationProgressType.EXCLUDED
             star_region.locations.append(loc)
-            progression_locs.append(loc_name)
 
         # Ensure the single global "Lose a Run" location exists and is gated by completing Day 1.
         # Place it as reachable after Day 1 so that the entrance requires completing Day 1 first.
@@ -399,7 +341,6 @@ def create_plateup_regions(world: "PlateUpWorld"):
                         loc = PlateUpLocation(world.player, "Lose a Run", lose_loc_id, parent=lose_region)
                         loc.progress_type = LocationProgressType.EXCLUDED
                         lose_region.locations.append(loc)
-                        progression_locs.append("Lose a Run")
         except Exception:
             pass
 
@@ -451,11 +392,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
             if loc_id is None:
                 continue
             loc = PlateUpLocation(world.player, loc_name, loc_id, parent=day_regions[day])
-            loc.sphere = (day - 1) // interval
             if loc_id in EXCLUDED_LOCATIONS:
                 loc.progress_type = LocationProgressType.EXCLUDED
             day_regions[day].locations.append(loc)
-            progression_locs.append(loc_name)
 
         for star in range(1, max_stars + 1):
             loc_name = f"Complete Star {star}"
@@ -480,11 +419,9 @@ def create_plateup_regions(world: "PlateUpWorld"):
             e.connect(star_region)
 
             loc = PlateUpLocation(world.player, loc_name, loc_id, parent=star_region)
-            loc.sphere = (target_day - 1) // interval
             if loc_id in EXCLUDED_LOCATIONS:
                 loc.progress_type = LocationProgressType.EXCLUDED
             star_region.locations.append(loc)
-            progression_locs.append(loc_name)
 
     # Add blueprint check and setting check locations to the progression region (all goals).
     # These are identified by checking which names in the planned location table are not yet placed.
@@ -500,6 +437,7 @@ def create_plateup_regions(world: "PlateUpWorld"):
             or name.startswith("Reroll Cost Check ")
             or name.startswith("Base Setting - Day ")
             or name.startswith(optional_setting_prefixes)
+            or name.startswith("Achievement - ")
         )
 
     for loc_name, loc_id in world._location_name_to_id.items():
@@ -509,48 +447,6 @@ def create_plateup_regions(world: "PlateUpWorld"):
             continue
         loc = PlateUpLocation(world.player, loc_name, loc_id, parent=progression_region)
         progression_region.locations.append(loc)
-
-    # Provide progression locations both as names (legacy) and as Location objects
-    # The Archipelago balancer expects `world.progression_locations` to be a list of
-    # location names (strings). Older code sometimes used Location objects which
-    # breaks matching in the balancer. Restore the legacy shape here and keep the
-    # actual Location objects on a separate attribute for debugging/inspection.
-    world.progression_locations = progression_locs
-    # Keep the actual Location objects available if other code wants them
-    try:
-        # Aggregate from all regions added in this function (progression/day/franchise regions)
-        all_prog_locs = []
-        for r in world.multiworld.regions:
-            if r.player != world.player:
-                continue
-            if r.name.startswith("Day ") or r.name.startswith("Franchise Run ") or r.name.startswith("Star "):
-                all_prog_locs.extend(r.locations)
-        if not all_prog_locs:
-            all_prog_locs = list(progression_region.locations)
-        world.progression_location_objects = all_prog_locs
-    except Exception:
-        world.progression_location_objects = list(progression_region.locations)
-    # Also keep the legacy name list under a verbose attribute for compatibility
-    world.progression_location_names = progression_locs
-    # Emit an info-level summary so console runs will show progression location details
-    # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Final progression-locs count: {len(progression_locs)}")
-    # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Progression-locs sample: {progression_locs[:20]}")
-    # Log actual Location objects added to the progression region and their progress_type
-    for loc in world.progression_location_objects:
-        try:
-            ptype = getattr(loc, 'progress_type', None)
-        except Exception:
-            ptype = None
-        # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Region loc: {loc.name} (id={loc.address}) progress_type={ptype} sphere={getattr(loc, 'sphere', None)}")
-    # Emit a grouped summary by the sphere value we assigned for easy verification
-    spheres = {}
-    for loc in world.progression_location_objects:
-        s = getattr(loc, 'sphere', None)
-        spheres.setdefault(s, []).append(loc.name)
-    for s in sorted(spheres.keys()):
-        # logging.info(f"[Player {world.multiworld.player_name[world.player]}] Assigned sphere {s}: {spheres[s]}")
-        pass
-    # logging.debug(f"[Player {world.multiworld.player_name[world.player]}] Final progression-locs: {progression_locs}")
 
     # Populate Dish Checks region with configured dish locations during region creation
     try:

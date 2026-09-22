@@ -47,13 +47,16 @@ class TestFranchiseLeaseStrictness(PlateUpTestBase):
         "free_starter_dishes": 1,
     }
 
-    def test_post_franchise_requires_overtime_lease(self) -> None:
+    def test_post_franchise_requires_day_lease(self) -> None:
         loc = self.world.get_location("Franchise - Complete First Day After Franchised")
 
+        # global_day = 15*1 + 1 = 16; leases_required = (16-1)//4 = 3
         no_items = _MockState()
         speed_only = _MockState({"Speed Upgrade Cook": 1})
-        lease_only = _MockState({"Overtime Day Lease": 1})
+        insufficient_lease = _MockState({"Day Lease": 2})
+        lease_only = _MockState({"Day Lease": 3})
 
         self.assertFalse(loc.access_rule(no_items))
         self.assertFalse(loc.access_rule(speed_only))
+        self.assertFalse(loc.access_rule(insufficient_lease))
         self.assertTrue(loc.access_rule(lease_only))

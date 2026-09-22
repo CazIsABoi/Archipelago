@@ -148,3 +148,53 @@ BLUEPRINT_LOCATIONS: Dict[str, int] = {
 REROLL_LOCATIONS: Dict[str, int] = {
     f"Reroll Cost Check {i}": 130000 + i for i in range(1, 101)
 }
+
+# ─── Achievement Check Locations ───────────────────────────────────────────────
+# Identifiers and IDs must match ProgressionMapping.achievementLocationIds in the
+# mod's C# source (PlateUpAP/ProgressionMapping.cs) exactly, since the mod sends
+# checks by looking up AchievementManager's Identifier string in that table.
+ACHIEVEMENT_IDENTIFIERS: Dict[str, int] = {
+    "FIRE_RECOVERY": 140001,
+    "FIRE_BRIGADE": 140002,
+    "OH_NO": 140003,
+    "CHARCOAL_FACTORY": 140004,
+    "SAFETY_LAST": 140005,
+    "LEARNING_BY_DOING": 140006,
+    "PLEASE_WAIT": 140007,
+    "FLAWLESS_TIMING": 140008,
+    "WHAT_A_STATE": 140009,
+    "CIRCLE_LINE": 140010,
+    "CHEF_SCHOOL": 140011,
+    "NEW_CHEF_PLUS": 140012,
+    "DAY_20": 140013,
+    "DAY_25": 140014,
+    "DAY_30": 140015,
+    "ANTISOCIAL": 140016,
+    "WORK_SMART": 140017,
+}
+
+
+def _achievement_display_name(identifier: str) -> str:
+    return "Achievement - " + identifier.replace("_", " ").title()
+
+
+ACHIEVEMENT_LOCATIONS: Dict[str, int] = {
+    _achievement_display_name(identifier): loc_id
+    for identifier, loc_id in ACHIEVEMENT_IDENTIFIERS.items()
+}
+ACHIEVEMENT_NAME_TO_IDENTIFIER: Dict[str, str] = {
+    _achievement_display_name(identifier): identifier for identifier in ACHIEVEMENT_IDENTIFIERS
+}
+
+# Achievements gated behind a day-count threshold; only include them once the
+# goal's total reachable day count meets the listed minimum.
+ACHIEVEMENT_DAY_REQUIREMENTS: Dict[str, int] = {
+    "DAY_20": 20,
+    "DAY_25": 25,
+    "DAY_30": 30,
+    "NEW_CHEF_PLUS": 16,  # requires completing Day 15 and continuing into overtime
+}
+
+# Achievements that require appliance_unlocks to be enabled to ever be earnable
+# (they depend on appliances only obtainable through the appliance unlock pool).
+APPLIANCE_GATED_ACHIEVEMENTS: Set[str] = {"CHARCOAL_FACTORY", "SAFETY_LAST"}
